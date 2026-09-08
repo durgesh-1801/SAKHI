@@ -4,8 +4,9 @@ Defines the stable API contracts for signal ingestion, validation, and risk anal
 Includes strict type checking and range validations to prevent invalid data from corrupting risk scores.
 """
 
+import math
 from enum import Enum
-from typing import List, Optional, Dict, Any
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -31,17 +32,17 @@ class SignalsPayload(BaseModel):
     )
 
     # 1. Manual SOS
-    manual_sos: Optional[bool] = Field(
+    manual_sos: bool | None = Field(
         default=False,
         description="Explicit user-triggered SOS button.",
     )
 
     # 2. Audio signals
-    distress_audio: Optional[bool] = Field(
+    distress_audio: bool | None = Field(
         default=False,
         description="Distress sound or scream detected.",
     )
-    audio_confidence: Optional[float] = Field(
+    audio_confidence: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
@@ -49,11 +50,11 @@ class SignalsPayload(BaseModel):
     )
 
     # 3. Distress keywords
-    distress_keywords: Optional[bool] = Field(
+    distress_keywords: bool | None = Field(
         default=False,
         description="Spoken distress keywords detected in speech stream.",
     )
-    keyword_confidence: Optional[float] = Field(
+    keyword_confidence: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
@@ -61,55 +62,55 @@ class SignalsPayload(BaseModel):
     )
 
     # 4. Motion and Fall signals
-    sudden_fall: Optional[bool] = Field(
+    sudden_fall: bool | None = Field(
         default=False,
         description="Accelerometer impact indicating sudden fall or drop.",
     )
-    fall_confidence: Optional[float] = Field(
+    fall_confidence: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
         description="Confidence score for sudden fall (0.0 to 1.0).",
     )
-    abnormal_motion: Optional[bool] = Field(
+    abnormal_motion: bool | None = Field(
         default=False,
         description="Erratic motion indicating struggling or physical altercation.",
     )
-    motion_anomaly_score: Optional[float] = Field(
+    motion_anomaly_score: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
         description="Processed anomaly score for motion (0.0 to 1.0).",
     )
-    sudden_running: Optional[bool] = Field(
+    sudden_running: bool | None = Field(
         default=False,
         description="Sudden transition to high-velocity running.",
     )
 
     # 5. Route and Journey signals
-    route_deviation: Optional[bool] = Field(
+    route_deviation: bool | None = Field(
         default=False,
         description="Significant deviation from planned route.",
     )
-    route_deviation_score: Optional[float] = Field(
+    route_deviation_score: float | None = Field(
         default=None,
         ge=0.0,
         le=1.0,
         description="Processed score for route deviation (0.0 to 1.0).",
     )
-    inactivity: Optional[bool] = Field(
+    inactivity: bool | None = Field(
         default=False,
         description="Prolonged lack of movement or responsiveness.",
     )
 
     # 6. Environmental and Sensor anomalies
-    sensor_anomalies: Optional[bool] = Field(
+    sensor_anomalies: bool | None = Field(
         default=False,
         description="Sensor or environmental reading anomalies detected.",
     )
 
     # 7. User verification response
-    no_response: Optional[bool] = Field(
+    no_response: bool | None = Field(
         default=False,
         description="User failed to respond to verification prompt within timeout.",
     )
@@ -122,11 +123,10 @@ class SignalsPayload(BaseModel):
         "route_deviation_score",
     )
     @classmethod
-    def validate_confidence_range(cls, v: Optional[float]) -> Optional[float]:
-        """Ensure confidence values are strictly within [0.0, 1.0] and not NaN."""
-        if v is not None:
-            if v < 0.0 or v > 1.0:
-                raise ValueError("Confidence or anomaly score must be between 0.0 and 1.0")
+    def validate_confidence_range(cls, v: float | None) -> float | None:
+        """Ensure confidence values are finite and strictly within [0.0, 1.0]."""
+        if v is not None and (not math.isfinite(v) or v < 0.0 or v > 1.0):
+            raise ValueError("Confidence or anomaly score must be a finite number between 0.0 and 1.0")
         return v
 
 
@@ -140,6 +140,7 @@ class AIAnalyzeRequest(BaseModel):
     user_id: str = Field(
         ...,
         min_length=1,
+        max_length=256,
         description="Identifier of the user for context logging (without storing sensitive PII).",
         examples=["user_12345"],
     )
@@ -147,10 +148,21 @@ class AIAnalyzeRequest(BaseModel):
         ...,
         description="Collection of safety signals and derived features.",
     )
-    timestamp: Optional[str] = Field(
+    timestamp: str | None = Field(
         default=None,
         description="ISO 8601 timestamp of signal capture.",
     )
+
+    @field_validator("user_id")
+    @classmethod
+    def validate_user_id(cls, v: str) -> str:
+        """Reject whitespace-only user_id and strip boundary whitespace."""
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("user_id cannot be blank or whitespace-only")
+        if len(stripped) > 256:
+            raise ValueError("user_id cannot exceed 256 characters")
+        return stripped
 
 
 class SignalDetail(BaseModel):
@@ -159,8 +171,8 @@ class SignalDetail(BaseModel):
     signal_name: str
     detected: bool
     weight_contributed: float
-    confidence: Optional[float] = None
-    reason: Optional[str] = None
+    confidence: float | None = None
+    reason: str | None = None
     status: str = "SUCCESS"  # SUCCESS, FAILED, SKIPPED
 
 
@@ -182,7 +194,7 @@ class AIAnalyzeResponse(BaseModel):
         description="Categorical risk classification: SAFE, SUSPICIOUS, HIGH, CRITICAL.",
         examples=[RiskLevel.CRITICAL],
     )
-    reasons: List[str] = Field(
+    reasons: list[str] = Field(
         ...,
         description="Human-readable explainable list of contributing risk factors.",
         examples=[
@@ -192,7 +204,7 @@ class AIAnalyzeResponse(BaseModel):
             "No user response detected",
         ],
     )
-    signals_detected: List[str] = Field(
+    signals_detected: list[str] = Field(
         ...,
         description="List of signal identifiers that contributed to the risk score.",
         examples=[
@@ -202,7 +214,7 @@ class AIAnalyzeResponse(BaseModel):
             "no_response",
         ],
     )
-    details: Optional[Dict[str, SignalDetail]] = Field(
+    details: dict[str, SignalDetail] | None = Field(
         default=None,
         description="Optional diagnostic breakdown of individual detector outputs.",
     )

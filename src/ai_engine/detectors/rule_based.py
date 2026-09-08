@@ -6,9 +6,9 @@ and can later be complemented or swapped with ML models (audio classification,
 accelerometer gesture recognition, GPS anomaly models) adhering to BaseDetector.
 """
 
-from typing import Optional
-from .base import BaseDetector, DetectionResult, DetectorStatus
+
 from ..schemas import SignalsPayload
+from .base import BaseDetector, DetectionResult, DetectorStatus
 
 
 class ManualSOSDetector(BaseDetector):
@@ -44,11 +44,9 @@ class DistressAudioDetector(BaseDetector):
 
     def _detect(self, payload: SignalsPayload, weight: float) -> DetectionResult:
         detected = False
-        confidence: Optional[float] = payload.audio_confidence
+        confidence: float | None = payload.audio_confidence
 
-        if payload.distress_audio:
-            detected = True
-        elif confidence is not None and confidence >= self.confidence_threshold:
+        if payload.distress_audio or confidence is not None and confidence >= self.confidence_threshold:
             detected = True
 
         return DetectionResult(
@@ -73,11 +71,9 @@ class DistressKeywordDetector(BaseDetector):
 
     def _detect(self, payload: SignalsPayload, weight: float) -> DetectionResult:
         detected = False
-        confidence: Optional[float] = payload.keyword_confidence
+        confidence: float | None = payload.keyword_confidence
 
-        if payload.distress_keywords:
-            detected = True
-        elif confidence is not None and confidence >= self.confidence_threshold:
+        if payload.distress_keywords or confidence is not None and confidence >= self.confidence_threshold:
             detected = True
 
         return DetectionResult(
@@ -102,11 +98,9 @@ class SuddenFallDetector(BaseDetector):
 
     def _detect(self, payload: SignalsPayload, weight: float) -> DetectionResult:
         detected = False
-        confidence: Optional[float] = payload.fall_confidence
+        confidence: float | None = payload.fall_confidence
 
-        if payload.sudden_fall:
-            detected = True
-        elif confidence is not None and confidence >= self.confidence_threshold:
+        if payload.sudden_fall or confidence is not None and confidence >= self.confidence_threshold:
             detected = True
 
         return DetectionResult(
@@ -131,11 +125,9 @@ class AbnormalMotionDetector(BaseDetector):
 
     def _detect(self, payload: SignalsPayload, weight: float) -> DetectionResult:
         detected = False
-        score: Optional[float] = payload.motion_anomaly_score
+        score: float | None = payload.motion_anomaly_score
 
-        if payload.abnormal_motion:
-            detected = True
-        elif score is not None and score >= self.score_threshold:
+        if payload.abnormal_motion or score is not None and score >= self.score_threshold:
             detected = True
 
         return DetectionResult(
@@ -181,11 +173,9 @@ class RouteDeviationDetector(BaseDetector):
 
     def _detect(self, payload: SignalsPayload, weight: float) -> DetectionResult:
         detected = False
-        score: Optional[float] = payload.route_deviation_score
+        score: float | None = payload.route_deviation_score
 
-        if payload.route_deviation:
-            detected = True
-        elif score is not None and score >= self.score_threshold:
+        if payload.route_deviation or score is not None and score >= self.score_threshold:
             detected = True
 
         return DetectionResult(

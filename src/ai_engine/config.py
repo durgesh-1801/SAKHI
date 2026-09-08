@@ -9,59 +9,70 @@ This configuration is designed so individual detector weights and thresholds can
 or substituted as empirical safety datasets and ML models are introduced.
 """
 
-from typing import Dict
-from pydantic import BaseModel, Field
+
+from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class SignalWeights(BaseModel):
     """Configurable weights for each safety signal.
 
-    Weights represent positive risk contributions towards danger severity.
+    Weights represent non-negative positive risk contributions towards danger severity.
+    Negative weights are rejected to prevent dangerous signals from reducing risk.
     """
 
     manual_sos: float = Field(
         default=50.0,
+        ge=0.0,
         description="Manual SOS trigger indicates immediate explicit user distress.",
     )
     distress_audio: float = Field(
         default=35.0,
+        ge=0.0,
         description="Distress sound or scream detected.",
     )
     distress_keywords: float = Field(
         default=25.0,
+        ge=0.0,
         description="Spoken distress keywords detected in audio.",
     )
     sudden_fall: float = Field(
         default=25.0,
+        ge=0.0,
         description="Sudden drop/fall impact detected by accelerometer.",
     )
     abnormal_motion: float = Field(
         default=15.0,
+        ge=0.0,
         description="Erratic or struggling motion pattern detected.",
     )
     sudden_running: float = Field(
         default=15.0,
+        ge=0.0,
         description="Sudden transition to high-velocity running/fleeing.",
     )
     route_deviation: float = Field(
         default=15.0,
+        ge=0.0,
         description="Significant deviation from expected journey route.",
     )
     inactivity: float = Field(
         default=15.0,
+        ge=0.0,
         description="Prolonged lack of movement or phone interaction during journey.",
     )
     sensor_anomalies: float = Field(
         default=10.0,
+        ge=0.0,
         description="Environmental or sensor readings outside normal bounds.",
     )
     no_response: float = Field(
         default=20.0,
+        ge=0.0,
         description="User failed to respond to safety verification prompt.",
     )
 
-    def to_dict(self) -> Dict[str, float]:
+    def to_dict(self) -> dict[str, float]:
         """Convert weights model to a dictionary."""
         return self.model_dump()
 
@@ -78,20 +89,40 @@ class RiskThresholds(BaseModel):
 
     safe_max: float = Field(
         default=30.0,
+        ge=0.0,
+        le=100.0,
         description="Upper score bound for SAFE status (inclusive).",
     )
     suspicious_max: float = Field(
         default=60.0,
+        ge=0.0,
+        le=100.0,
         description="Upper score bound for SUSPICIOUS status (inclusive).",
     )
     high_max: float = Field(
         default=80.0,
+        ge=0.0,
+        le=100.0,
         description="Upper score bound for HIGH status (inclusive).",
     )
     critical_min: float = Field(
         default=81.0,
+        ge=0.0,
+        le=100.0,
         description="Lower score bound for CRITICAL status (inclusive).",
     )
+
+    @model_validator(mode="after")
+    def validate_threshold_order(self) -> "RiskThresholds":
+        """Ensure threshold levels are strictly ordered: safe < suspicious < high <= critical."""
+        if not (0.0 <= self.safe_max < self.suspicious_max < self.high_max <= self.critical_min <= 100.0):
+            raise ValueError(
+                f"Invalid threshold ordering: safe_max ({self.safe_max}) < "
+                f"suspicious_max ({self.suspicious_max}) < "
+                f"high_max ({self.high_max}) <= "
+                f"critical_min ({self.critical_min}) must hold strictly within [0, 100]."
+            )
+        return self
 
 
 class RiskEngineSettings(BaseSettings):

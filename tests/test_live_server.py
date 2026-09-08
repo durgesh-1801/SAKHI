@@ -6,8 +6,10 @@ requests using httpx to guarantee live wire-level compliance.
 
 import threading
 import time
+
 import httpx
 import uvicorn
+
 from src.ai_engine.api import app
 
 
@@ -37,7 +39,7 @@ def test_live_server_end_to_end():
             r = httpx.get(f"{base_url}/health", timeout=1.0)
             if r.status_code == 200:
                 break
-        except Exception:
+        except (httpx.RequestError, OSError):
             time.sleep(0.1)
 
     try:

@@ -5,10 +5,13 @@ Adheres strictly to the analysis boundary: returns risk severity without trigger
 """
 
 import logging
-from typing import Any, Dict
+from typing import Any
+
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from .config import settings
 from .engine import RiskEngine
@@ -31,6 +34,29 @@ app = FastAPI(
     ),
     docs_url="/docs",
     redoc_url="/redoc",
+)
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware enforcing defense-in-depth HTTP security headers."""
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+# Register security headers and CORS middleware
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize engine instance
@@ -67,7 +93,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 @app.get("/health", tags=["System"])
-async def health_check() -> Dict[str, Any]:
+async def health_check() -> dict[str, Any]:
     """Health and readiness check for the AI Risk Engine service."""
     return {
         "status": "healthy",
@@ -77,7 +103,7 @@ async def health_check() -> Dict[str, Any]:
 
 
 @app.get("/ai/config", tags=["AI Engine"])
-async def get_engine_config() -> Dict[str, Any]:
+async def get_engine_config() -> dict[str, Any]:
     """Inspect active weights and classification thresholds."""
     return {
         "weights": engine.config.weights.to_dict(),
@@ -128,12 +154,10 @@ async def analyze_signals(request: AIAnalyzeRequest) -> AIAnalyzeResponse:
         )
 
         return response
-    except Exception as exc:
-        logger.error(
-            "Unexpected error during signal analysis for user=%s: %s",
+    except Exception:
+        logger.exception(
+            "Unexpected error during signal analysis for user=%s",
             request.user_id,
-            str(exc),
-            exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

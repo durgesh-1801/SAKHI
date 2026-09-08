@@ -5,20 +5,21 @@ for every supported safety signal detector in SAKHI.
 """
 
 import pytest
-from src.ai_engine.schemas import SignalsPayload
+
 from src.ai_engine.detectors.base import BaseDetector, DetectionResult, DetectorStatus
 from src.ai_engine.detectors.rule_based import (
-    ManualSOSDetector,
+    AbnormalMotionDetector,
     DistressAudioDetector,
     DistressKeywordDetector,
-    SuddenFallDetector,
-    AbnormalMotionDetector,
-    SuddenRunningDetector,
-    RouteDeviationDetector,
     InactivityDetector,
+    ManualSOSDetector,
+    RouteDeviationDetector,
     SensorAnomalyDetector,
+    SuddenFallDetector,
+    SuddenRunningDetector,
     UserResponseDetector,
 )
+from src.ai_engine.schemas import SignalsPayload
 
 
 def test_manual_sos_detector():

@@ -5,7 +5,9 @@ under concurrent client interactions.
 """
 
 from concurrent.futures import ThreadPoolExecutor
+
 from fastapi.testclient import TestClient
+
 from src.ai_engine.api import app
 
 client = TestClient(app)

@@ -4,27 +4,28 @@ Coordinates signal validation, detector evaluation, weighted score aggregation,
 score clamping [0, 100], risk level classification, and explainable reason generation.
 """
 
-from typing import Dict, List, Optional
 import logging
-from .config import RiskEngineSettings, settings as default_settings
+
+from .config import RiskEngineSettings, RiskThresholds
+from .config import settings as default_settings
+from .detectors.base import BaseDetector, DetectorStatus
+from .detectors.rule_based import (
+    AbnormalMotionDetector,
+    DistressAudioDetector,
+    DistressKeywordDetector,
+    InactivityDetector,
+    ManualSOSDetector,
+    RouteDeviationDetector,
+    SensorAnomalyDetector,
+    SuddenFallDetector,
+    SuddenRunningDetector,
+    UserResponseDetector,
+)
 from .schemas import (
-    SignalsPayload,
     AIAnalyzeResponse,
     RiskLevel,
     SignalDetail,
-)
-from .detectors.base import BaseDetector, DetectorStatus
-from .detectors.rule_based import (
-    ManualSOSDetector,
-    DistressAudioDetector,
-    DistressKeywordDetector,
-    SuddenFallDetector,
-    AbnormalMotionDetector,
-    SuddenRunningDetector,
-    RouteDeviationDetector,
-    InactivityDetector,
-    SensorAnomalyDetector,
-    UserResponseDetector,
+    SignalsPayload,
 )
 
 logger = logging.getLogger("sakhi.ai_engine.engine")
@@ -37,9 +38,9 @@ class RiskEngine:
     and classifies danger levels without initiating emergency actions.
     """
 
-    def __init__(self, config: Optional[RiskEngineSettings] = None):
+    def __init__(self, config: RiskEngineSettings | None = None):
         self.config = config or default_settings
-        self.detectors: Dict[str, BaseDetector] = {}
+        self.detectors: dict[str, BaseDetector] = {}
         self._register_default_detectors()
 
     def _register_default_detectors(self) -> None:
@@ -64,7 +65,7 @@ class RiskEngine:
         self.detectors[detector.signal_name] = detector
         logger.debug("Registered detector for signal: %s", detector.signal_name)
 
-    def update_weights(self, new_weights: Dict[str, float]) -> None:
+    def update_weights(self, new_weights: dict[str, float]) -> None:
         """Dynamically update signal weights in runtime configuration."""
         current_dict = self.config.weights.to_dict()
         current_dict.update(new_weights)
@@ -72,20 +73,22 @@ class RiskEngine:
 
     def update_thresholds(
         self,
-        safe_max: Optional[float] = None,
-        suspicious_max: Optional[float] = None,
-        high_max: Optional[float] = None,
-        critical_min: Optional[float] = None,
+        safe_max: float | None = None,
+        suspicious_max: float | None = None,
+        high_max: float | None = None,
+        critical_min: float | None = None,
     ) -> None:
-        """Dynamically update classification thresholds."""
+        """Dynamically update classification thresholds with strict validation."""
+        current_data = self.config.thresholds.model_dump()
         if safe_max is not None:
-            self.config.thresholds.safe_max = safe_max
+            current_data["safe_max"] = safe_max
         if suspicious_max is not None:
-            self.config.thresholds.suspicious_max = suspicious_max
+            current_data["suspicious_max"] = suspicious_max
         if high_max is not None:
-            self.config.thresholds.high_max = high_max
+            current_data["high_max"] = high_max
         if critical_min is not None:
-            self.config.thresholds.critical_min = critical_min
+            current_data["critical_min"] = critical_min
+        self.config.thresholds = RiskThresholds(**current_data)
 
     def classify_risk(self, score: float) -> RiskLevel:
         """Classify a clamped risk score into a standard categorical RiskLevel.
@@ -117,9 +120,9 @@ class RiskEngine:
             and signals_detected.
         """
         raw_score = 0.0
-        reasons: List[str] = []
-        signals_detected: List[str] = []
-        details: Dict[str, SignalDetail] = {}
+        reasons: list[str] = []
+        signals_detected: list[str] = []
+        details: dict[str, SignalDetail] = {}
 
         weights = self.config.weights.to_dict()
 

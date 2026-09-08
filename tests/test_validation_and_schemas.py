@@ -6,12 +6,13 @@ and serialization contracts for SAKHI API models.
 
 import pytest
 from pydantic import ValidationError
+
 from src.ai_engine.schemas import (
-    SignalsPayload,
     AIAnalyzeRequest,
     AIAnalyzeResponse,
     RiskLevel,
     SignalDetail,
+    SignalsPayload,
 )
 
 

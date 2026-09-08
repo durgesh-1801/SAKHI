@@ -4,11 +4,12 @@ Provides an extensible contract for all signal detectors (rule-based or future M
 Includes built-in safe failure handling so individual detector faults never crash the engine.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from enum import Enum
-import logging
-from typing import Optional
+
 from pydantic import BaseModel
+
 from ..schemas import SignalsPayload
 
 logger = logging.getLogger("sakhi.ai_engine.detectors")
@@ -27,11 +28,11 @@ class DetectionResult(BaseModel):
 
     signal_name: str
     detected: bool = False
-    confidence: Optional[float] = None
+    confidence: float | None = None
     weight_contributed: float = 0.0
-    reason: Optional[str] = None
+    reason: str | None = None
     status: DetectorStatus = DetectorStatus.SUCCESS
-    error_message: Optional[str] = None
+    error_message: str | None = None
 
 
 class BaseDetector(ABC):
@@ -57,11 +58,9 @@ class BaseDetector(ABC):
         try:
             return self._detect(payload, weight)
         except Exception as exc:
-            logger.error(
-                "Detector %s failed during evaluation: %s",
+            logger.exception(
+                "Detector %s failed during evaluation",
                 self.signal_name,
-                str(exc),
-                exc_info=True,
             )
             return DetectionResult(
                 signal_name=self.signal_name,
@@ -70,7 +69,7 @@ class BaseDetector(ABC):
                 weight_contributed=0.0,
                 reason=None,
                 status=DetectorStatus.FAILED,
-                error_message=f"Detector error: {str(exc)}",
+                error_message=f"Detector error: {exc!s}",
             )
 
     @abstractmethod

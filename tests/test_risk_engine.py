@@ -26,16 +26,15 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from src.ai_engine.config import RiskEngineSettings, SignalWeights, RiskThresholds
+from src.ai_engine.api import app
+from src.ai_engine.config import RiskEngineSettings, RiskThresholds, SignalWeights
+from src.ai_engine.detectors.base import BaseDetector, DetectionResult, DetectorStatus
+from src.ai_engine.engine import RiskEngine
 from src.ai_engine.schemas import (
-    SignalsPayload,
     AIAnalyzeRequest,
     RiskLevel,
+    SignalsPayload,
 )
-from src.ai_engine.engine import RiskEngine
-from src.ai_engine.detectors.base import BaseDetector, DetectionResult, DetectorStatus
-from src.ai_engine.api import app
-
 
 client = TestClient(app)
 
