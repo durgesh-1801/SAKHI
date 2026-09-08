@@ -10,6 +10,8 @@ or substituted as empirical safety datasets and ML models are introduced.
 """
 
 
+import os
+
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -125,6 +127,39 @@ class RiskThresholds(BaseModel):
         return self
 
 
+class WhisperSettings(BaseModel):
+    """Configuration for local offline Whisper Speech-to-Text inference.
+
+    Supports both SAKHI_AI_WHISPER__* environment variables and standard
+    WHISPER_* environment variables.
+    """
+
+    model_size: str = Field(
+        default_factory=lambda: os.getenv("WHISPER_MODEL_SIZE", "tiny"),
+        description="Pretrained Whisper model size (tiny, base, small, medium, large-v3).",
+    )
+    model_path: str | None = Field(
+        default_factory=lambda: os.getenv("WHISPER_MODEL_PATH", None),
+        description="Local directory path to model weights or HuggingFace repo ID.",
+    )
+    device: str = Field(
+        default_factory=lambda: os.getenv("WHISPER_DEVICE", "cpu"),
+        description="Device for Whisper inference ('cpu' or 'cuda').",
+    )
+    compute_type: str = Field(
+        default_factory=lambda: os.getenv("WHISPER_COMPUTE_TYPE", "int8"),
+        description="Quantization compute type ('int8', 'float16', 'float32', 'default').",
+    )
+    language: str | None = Field(
+        default_factory=lambda: os.getenv("WHISPER_LANGUAGE", None),
+        description="Target language code (e.g. 'en', 'hi') or None/'auto' for automatic language detection.",
+    )
+    enabled: bool = Field(
+        default=True,
+        description="Whether STT processing is enabled in the audio pipeline.",
+    )
+
+
 class RiskEngineSettings(BaseSettings):
     """Global configuration settings for SAKHI AI / Risk Engine."""
 
@@ -141,10 +176,12 @@ class RiskEngineSettings(BaseSettings):
     min_score: float = 0.0
     max_score: float = 100.0
 
-    # Default weights and classification thresholds
+    # Default weights, classification thresholds, and STT config
     weights: SignalWeights = Field(default_factory=SignalWeights)
     thresholds: RiskThresholds = Field(default_factory=RiskThresholds)
+    whisper: WhisperSettings = Field(default_factory=WhisperSettings)
 
 
 # Default settings instance
 settings = RiskEngineSettings()
+

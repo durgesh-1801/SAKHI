@@ -1,12 +1,13 @@
-"""Audio Ingestion, Validation, and Acoustic Distress Pipeline for SAKHI.
+"""Audio Ingestion, Validation, Acoustic Distress, and Whisper STT Pipeline for SAKHI.
 
 Validates uploaded audio payloads, checks format boundaries and size constraints,
-and extracts acoustic features / distress indicators.
+extracts acoustic features, and executes local Whisper speech-to-text
+to identify distress keywords.
 
 IMPORTANT:
-- Whisper / STT model is PLANNED and not fabricated in application code.
+- Whisper / STT performs speech transcription and distress keyword extraction.
 - Twilio is telephony/SMS owned by Backend 3, NOT speech recognition.
-- If audio analysis fails, the pipeline fails safely with an explicit error
+- If audio analysis or STT fails, the pipeline fails safely with an explicit error
   and NEVER assumes safety.
 """
 
@@ -16,6 +17,8 @@ import os
 
 from fastapi import HTTPException, UploadFile, status
 from pydantic import BaseModel
+
+from .stt_service import SpeechToTextService, STTProcessingError, stt_service
 
 logger = logging.getLogger("sakhi.ai_engine.audio")
 
@@ -44,6 +47,10 @@ class AudioAnalysisResult(BaseModel):
     confidence: float
     keywords_detected: list[str] = []
     rms_energy: float | None = None
+    transcript_text: str | None = None
+    detected_language: str | None = None
+    keyword_confidence: float | None = None
+    stt_status: str = "SUCCESS"  # SUCCESS, DISABLED, FAILED
     status: str = "SUCCESS"  # SUCCESS, FAILED
     error_message: str | None = None
 
@@ -159,12 +166,16 @@ class AcousticDistressExtractor:
 class AudioPipeline:
     """Unified audio processing pipeline for SAKHI."""
 
-    def __init__(self):
+    def __init__(self, stt: SpeechToTextService | None = None):
         self.validator = AudioValidator()
         self.extractor = AcousticDistressExtractor()
+        self.stt_service = stt or stt_service
 
     async def process_upload(self, file: UploadFile) -> tuple[bytes, AudioAnalysisResult]:
         """Validates and processes an uploaded audio file.
+
+        Executes acoustic energy analysis followed by offline Whisper STT
+        for spoken distress keyword recognition.
 
         Raises:
             HTTPException: On validation failure or unrecoverable error.
@@ -173,15 +184,38 @@ class AudioPipeline:
         raw_bytes = await file.read()
         self.validator.validate_payload_bytes(raw_bytes)
 
-        result = self.extractor.analyze_bytes(raw_bytes, file.filename or "audio.wav")
+        filename = file.filename or "audio.wav"
+
+        # 1. Acoustic Distress Analysis (Energy/amplitude heuristics)
+        result = self.extractor.analyze_bytes(raw_bytes, filename)
         if result.status == "FAILED":
-            logger.error("Audio processing failed for file=%s: %s", file.filename, result.error_message)
+            logger.error("Audio processing failed for file=%s: %s", filename, result.error_message)
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={
                     "error": "AUDIO_PROCESSING_FAILED",
                     "message": "The uploaded audio file could not be decoded or processed by the safety engine.",
                     "details": result.error_message,
+                },
+            )
+
+        # 2. Whisper Speech-to-Text & Distress Keyword Analysis
+        try:
+            stt_result = self.stt_service.transcribe(raw_bytes, filename)
+            result.keywords_detected = stt_result.keywords_detected
+            result.transcript_text = stt_result.text
+            result.detected_language = stt_result.language
+            result.keyword_confidence = stt_result.keyword_confidence
+            result.stt_status = "SUCCESS"
+        except STTProcessingError as stt_err:
+            logger.error("Whisper STT processing failed for file=%s: %s", filename, stt_err.message)
+            # STT failure must NOT silently become SAFE!
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={
+                    "error": "STT_TRANSCRIPTION_FAILED",
+                    "message": "Speech-to-text processing failed for the uploaded audio file.",
+                    "details": stt_err.details or stt_err.message,
                 },
             )
 

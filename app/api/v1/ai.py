@@ -139,13 +139,16 @@ async def analyze_audio_file(
             },
         )
 
-    # 2. Process audio upload
+    # 2. Process audio upload (Acoustic + Whisper STT)
     _, audio_result = await audio_pipeline.process_upload(file)
 
-    # 3. Formulate signals payload
+    # 3. Formulate signals payload including detected spoken keywords
+    has_keywords = bool(audio_result.keywords_detected)
     signals = SignalsPayload(
         distress_audio=audio_result.distress_detected,
         audio_confidence=audio_result.confidence,
+        distress_keywords=has_keywords,
+        keyword_confidence=audio_result.keyword_confidence if has_keywords else None,
         sudden_fall=sudden_fall or False,
         abnormal_motion=abnormal_motion or False,
     )
