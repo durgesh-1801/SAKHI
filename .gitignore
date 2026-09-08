@@ -4,6 +4,16 @@ __pycache__/
 *$py.class
 
 # Virtual environments
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments & Local Secrets
 .env
 .venv
 env/
@@ -19,3 +29,14 @@ htmlcov/
 .vscode/
 .idea/
 *.swp
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+sakhi.db
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
