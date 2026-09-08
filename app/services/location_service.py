@@ -11,7 +11,7 @@ Processes location updates during an active emergency:
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -51,9 +51,7 @@ async def process_location_update(
     # We use the existing location history count as a proxy — simple and effective.
     should_log_event = (
         incident.location_updated_at is None  # first update
-        or _is_significant_change(
-            incident.latitude, incident.longitude, latitude, longitude
-        )
+        or _is_significant_change(incident.latitude, incident.longitude, latitude, longitude)
     )
 
     if should_log_event:
@@ -78,7 +76,7 @@ async def process_location_update(
             "latitude": latitude,
             "longitude": longitude,
             "accuracy": accuracy,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     )
     logger.debug(

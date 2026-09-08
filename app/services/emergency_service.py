@@ -12,9 +12,10 @@ Core incident lifecycle operations:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -26,14 +27,11 @@ from app.models.emergency import (
 )
 from app.schemas.emergency import (
     AITriggerRequest,
-    EmergencyIncidentRead,
-    EmergencyIncidentWithTimeline,
     SOSRequest,
 )
-from fastapi import HTTPException, status
-
 
 # ─── Helpers ──────────────────────────────────────────────────────────────────
+
 
 async def log_event(
     db: AsyncSession,
@@ -58,9 +56,7 @@ async def _get_incident_or_404(
     incident_id: uuid.UUID,
     db: AsyncSession,
 ) -> EmergencyIncident:
-    result = await db.execute(
-        select(EmergencyIncident).where(EmergencyIncident.id == incident_id)
-    )
+    result = await db.execute(select(EmergencyIncident).where(EmergencyIncident.id == incident_id))
     incident = result.scalar_one_or_none()
     if incident is None:
         raise HTTPException(
@@ -90,6 +86,7 @@ def _assert_active(incident: EmergencyIncident) -> None:
 
 # ─── Create ───────────────────────────────────────────────────────────────────
 
+
 async def create_manual_sos(
     user_id: uuid.UUID,
     payload: SOSRequest,
@@ -109,7 +106,7 @@ async def create_manual_sos(
         latitude=payload.latitude,
         longitude=payload.longitude,
         location_accuracy=payload.accuracy,
-        location_updated_at=datetime.now(timezone.utc) if payload.latitude else None,
+        location_updated_at=datetime.now(UTC) if payload.latitude else None,
         policy_snapshot=policy_snapshot,
     )
     db.add(incident)
@@ -145,9 +142,7 @@ async def create_ai_triggered_incident(
         longitude=payload.longitude,
         ai_reasons=payload.reasons,
         policy_snapshot=policy_snapshot,
-        location_updated_at=(
-            datetime.now(timezone.utc) if payload.latitude else None
-        ),
+        location_updated_at=(datetime.now(UTC) if payload.latitude else None),
     )
     db.add(incident)
     await db.flush()
@@ -169,6 +164,7 @@ async def create_ai_triggered_incident(
 
 
 # ─── Read ─────────────────────────────────────────────────────────────────────
+
 
 async def get_incident(
     incident_id: uuid.UUID,
@@ -221,6 +217,7 @@ async def list_user_incidents(
 
 # ─── Mutations ────────────────────────────────────────────────────────────────
 
+
 async def cancel_incident(
     incident_id: uuid.UUID,
     user_id: uuid.UUID,
@@ -232,7 +229,7 @@ async def cancel_incident(
     _assert_active(incident)
 
     incident.status = "CANCELLED"
-    incident.resolved_at = datetime.now(timezone.utc)
+    incident.resolved_at = datetime.now(UTC)
     db.add(incident)
 
     await log_event(
@@ -259,7 +256,7 @@ async def resolve_incident(
         return incident  # idempotent
 
     incident.status = "RESOLVED"
-    incident.resolved_at = datetime.now(timezone.utc)
+    incident.resolved_at = datetime.now(UTC)
     db.add(incident)
 
     await log_event(
@@ -293,7 +290,7 @@ async def update_incident_location(
     db: AsyncSession,
 ) -> EmergencyIncident:
     """Update the latest location on the incident and persist a location history record."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     incident.latitude = latitude
     incident.longitude = longitude
     incident.location_accuracy = accuracy

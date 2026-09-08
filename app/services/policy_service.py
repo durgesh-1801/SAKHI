@@ -10,6 +10,7 @@ BE3 CONTRACT (do not change function signatures):
 """
 
 import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -27,9 +28,7 @@ async def get_emergency_policy(
         This function is already implemented with a real DB query.
         You may add caching or additional logic, but keep the signature.
     """
-    result = await db.execute(
-        select(EmergencyPolicy).where(EmergencyPolicy.user_id == user_id)
-    )
+    result = await db.execute(select(EmergencyPolicy).where(EmergencyPolicy.user_id == user_id))
     return result.scalar_one_or_none()
 
 

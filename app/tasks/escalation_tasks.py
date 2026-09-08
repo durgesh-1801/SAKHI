@@ -10,18 +10,19 @@ Background tasks for the escalation engine:
 
 import asyncio
 import uuid
+from typing import Any
 
 from app.tasks.celery_app import celery_app
 
 
-@celery_app.task(
+@celery_app.task(  # type: ignore[misc]
     name="aria.emergency.handle_no_response",
     bind=True,
     max_retries=3,
     default_retry_delay=5,
     acks_late=True,
 )
-def handle_no_response_task(self, incident_id: str) -> dict:  # type: ignore[no-untyped-def]
+def handle_no_response_task(self: Any, incident_id: str) -> dict[str, Any]:
     """
     Fired by the verification timeout.
 
@@ -42,23 +43,22 @@ def handle_no_response_task(self, incident_id: str) -> dict:  # type: ignore[no-
         result = loop.run_until_complete(_run_no_response(incident_id))
         return result
     except Exception as exc:  # noqa: BLE001
-        raise self.retry(exc=exc)
+        raise self.retry(exc=exc) from exc
     finally:
         loop.close()
 
 
-async def _run_no_response(incident_id: str) -> dict:
+async def _run_no_response(incident_id: str) -> dict[str, Any]:
     """Async implementation called from the sync Celery task."""
     from sqlalchemy import select
+
     from app.database import AsyncSessionLocal
     from app.models.emergency import EmergencyIncident
     from app.services.escalation_service import execute_no_response_escalation
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(EmergencyIncident).where(
-                EmergencyIncident.id == uuid.UUID(incident_id)
-            )
+            select(EmergencyIncident).where(EmergencyIncident.id == uuid.UUID(incident_id))
         )
         incident = result.scalar_one_or_none()
 

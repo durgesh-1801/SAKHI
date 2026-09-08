@@ -22,9 +22,7 @@ async def test_sos_creates_incident(
     client: AsyncClient, test_user, test_policy, test_consent, test_contact
 ):
     """POST /emergency/sos → 201, ACTIVE incident with CRITICAL risk."""
-    with patch(
-        "app.services.escalation_service.start_escalation", new_callable=AsyncMock
-    ):
+    with patch("app.services.escalation_service.start_escalation", new_callable=AsyncMock):
         response = await client.post(
             "/emergency/sos",
             json={"latitude": 26.8432, "longitude": 75.5651, "accuracy": 5.0},
@@ -38,13 +36,9 @@ async def test_sos_creates_incident(
 
 
 @pytest.mark.asyncio
-async def test_sos_without_location(
-    client: AsyncClient, test_user, test_policy, test_consent
-):
+async def test_sos_without_location(client: AsyncClient, test_user, test_policy, test_consent):
     """POST /emergency/sos with no location → still creates incident."""
-    with patch(
-        "app.services.escalation_service.start_escalation", new_callable=AsyncMock
-    ):
+    with patch("app.services.escalation_service.start_escalation", new_callable=AsyncMock):
         response = await client.post("/emergency/sos", json={})
 
     assert response.status_code == 201
@@ -68,12 +62,11 @@ async def test_sos_creates_timeline_event(
     client: AsyncClient, test_user, test_policy, test_consent, db_session
 ):
     """After SOS, an INCIDENT_CREATED event should be in the DB."""
-    from app.models.emergency import IncidentEvent
     from sqlalchemy import select
 
-    with patch(
-        "app.services.escalation_service.start_escalation", new_callable=AsyncMock
-    ):
+    from app.models.emergency import IncidentEvent
+
+    with patch("app.services.escalation_service.start_escalation", new_callable=AsyncMock):
         response = await client.post("/emergency/sos", json={})
     assert response.status_code == 201
 
@@ -91,9 +84,7 @@ async def test_sos_creates_timeline_event(
 
 
 @pytest.mark.asyncio
-async def test_list_incidents(
-    client: AsyncClient, test_user, active_incident
-):
+async def test_list_incidents(client: AsyncClient, test_user, active_incident):
     """GET /emergency/incidents → returns user's incidents."""
     response = await client.get("/emergency/incidents")
     assert response.status_code == 200
@@ -104,9 +95,7 @@ async def test_list_incidents(
 
 
 @pytest.mark.asyncio
-async def test_get_incident_detail(
-    client: AsyncClient, test_user, active_incident
-):
+async def test_get_incident_detail(client: AsyncClient, test_user, active_incident):
     """GET /emergency/incidents/{id} → returns incident detail."""
     from tests.conftest import TEST_INCIDENT_ID
 
@@ -127,9 +116,7 @@ async def test_get_incident_not_found(client: AsyncClient, test_user):
 
 
 @pytest.mark.asyncio
-async def test_cancel_incident(
-    client: AsyncClient, test_user, active_incident
-):
+async def test_cancel_incident(client: AsyncClient, test_user, active_incident):
     """POST /emergency/incidents/{id}/cancel → CANCELLED."""
     from tests.conftest import TEST_INCIDENT_ID
 
@@ -143,9 +130,7 @@ async def test_cancel_incident(
 
 
 @pytest.mark.asyncio
-async def test_resolve_incident(
-    client: AsyncClient, test_user, active_incident
-):
+async def test_resolve_incident(client: AsyncClient, test_user, active_incident):
     """POST /emergency/incidents/{id}/resolve → RESOLVED."""
     from tests.conftest import TEST_INCIDENT_ID
 

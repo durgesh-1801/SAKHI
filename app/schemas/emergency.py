@@ -10,10 +10,10 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, Field, field_validator
-
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator
 
 # ─── Enums (string literals — matches DB enum values) ─────────────────────────
+
 
 class RiskLevelEnum(str):
     SAFE = "SAFE"
@@ -41,11 +41,13 @@ class TriggerTypeEnum(str):
 
 # ─── Request Schemas ──────────────────────────────────────────────────────────
 
+
 class SOSRequest(BaseModel):
     """
     Manual SOS trigger request body.
     All fields are optional — the user may trigger SOS without initial location.
     """
+
     latitude: float | None = Field(None, ge=-90.0, le=90.0, description="Current latitude")
     longitude: float | None = Field(None, ge=-180.0, le=180.0, description="Current longitude")
     accuracy: float | None = Field(None, ge=0.0, description="GPS accuracy in metres")
@@ -56,6 +58,7 @@ class AITriggerRequest(BaseModel):
     AI risk result delivered by Backend Engineer 1.
     Triggers an emergency flow if the user has consented to AI monitoring.
     """
+
     user_id: uuid.UUID = Field(..., description="The user at risk (from AI engine context)")
     risk_score: float = Field(..., ge=0.0, le=100.0, description="Risk score 0–100")
     risk_level: str = Field(..., description="SAFE | SUSPICIOUS | HIGH | CRITICAL")
@@ -86,6 +89,7 @@ class AITriggerRequest(BaseModel):
 
 class VerifyRequest(BaseModel):
     """User's response to the 'Are you safe?' verification request."""
+
     response: str = Field(
         ...,
         description="USER_CONFIRMED_SAFE | USER_REQUESTED_HELP",
@@ -105,6 +109,7 @@ class LocationUpdateRequest(BaseModel):
     Location update from mobile app during active emergency.
     Sent via WebSocket (client → server).
     """
+
     latitude: float = Field(..., ge=-90.0, le=90.0)
     longitude: float = Field(..., ge=-180.0, le=180.0)
     accuracy: float | None = Field(None, ge=0.0)
@@ -112,15 +117,19 @@ class LocationUpdateRequest(BaseModel):
 
 # ─── Response Schemas ─────────────────────────────────────────────────────────
 
+
 class IncidentEventRead(BaseModel):
     id: uuid.UUID
     incident_id: uuid.UUID
     event_type: str
     description: str
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = Field(
+        default=None,
+        validation_alias=AliasChoices("metadata", "event_metadata"),
+    )
     created_at: datetime
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class IncidentLocationRead(BaseModel):
@@ -136,6 +145,7 @@ class IncidentLocationRead(BaseModel):
 
 class EmergencyIncidentRead(BaseModel):
     """Full incident detail returned to the authenticated user."""
+
     id: uuid.UUID
     user_id: uuid.UUID
     trigger_type: str
@@ -156,11 +166,13 @@ class EmergencyIncidentRead(BaseModel):
 
 class EmergencyIncidentWithTimeline(EmergencyIncidentRead):
     """Incident detail including the full event timeline."""
+
     events: list[IncidentEventRead] = []
 
 
 class SOSResponse(BaseModel):
     """Response to a successful SOS trigger."""
+
     incident_id: uuid.UUID
     status: str
     risk_level: str
@@ -169,6 +181,7 @@ class SOSResponse(BaseModel):
 
 class VerifyResponse(BaseModel):
     """Response to a verification answer."""
+
     incident_id: uuid.UUID
     status: str
     message: str
@@ -176,6 +189,7 @@ class VerifyResponse(BaseModel):
 
 class LocationResponse(BaseModel):
     """Latest location for an incident (guardian-only endpoint)."""
+
     incident_id: uuid.UUID
     latitude: float | None
     longitude: float | None
@@ -186,8 +200,10 @@ class LocationResponse(BaseModel):
 
 # ─── WebSocket Event Schemas ──────────────────────────────────────────────────
 
+
 class WSLocationUpdate(BaseModel):
     """Server → guardian: live location broadcast."""
+
     event: str = "location_update"
     incident_id: str
     latitude: float
@@ -198,6 +214,7 @@ class WSLocationUpdate(BaseModel):
 
 class WSIncidentUpdate(BaseModel):
     """Server → all: incident status change."""
+
     event: str = "incident_update"
     incident_id: str
     status: str
@@ -206,6 +223,7 @@ class WSIncidentUpdate(BaseModel):
 
 class WSVerificationRequest(BaseModel):
     """Server → user: 'Are you safe?' prompt."""
+
     event: str = "verification_request"
     incident_id: str
     message: str = "Are you safe? Respond within the configured timeout."
@@ -214,6 +232,7 @@ class WSVerificationRequest(BaseModel):
 
 class WSContactNotified(BaseModel):
     """Server → user: confirmation a contact was notified."""
+
     event: str = "contact_notified"
     incident_id: str
     contact_name: str
@@ -222,6 +241,7 @@ class WSContactNotified(BaseModel):
 
 class WSIncidentResolved(BaseModel):
     """Server → all: incident closed."""
+
     event: str = "incident_resolved"
     incident_id: str
     resolved_by: str  # "USER" | "TIMEOUT" | "SYSTEM"
@@ -230,6 +250,7 @@ class WSIncidentResolved(BaseModel):
 
 class WSError(BaseModel):
     """Server → client: error event."""
+
     event: str = "error"
     code: str
     message: str
@@ -237,11 +258,13 @@ class WSError(BaseModel):
 
 # ─── Guardian Update Schema (notification payload) ────────────────────────────
 
+
 class GuardianAlertPayload(BaseModel):
     """
     Structured payload sent to trusted contacts as emergency alert.
     Used by the notification dispatcher.
     """
+
     incident_id: str
     user_name: str
     risk_level: str

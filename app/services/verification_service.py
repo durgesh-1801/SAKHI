@@ -8,8 +8,7 @@ Handles the "Are you safe?" verification stage:
   - handle_verification_response: USER_CONFIRMED_SAFE or USER_REQUESTED_HELP
 """
 
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -61,14 +60,13 @@ async def request_verification(
 
     # Push "Are you safe?" notification to user
     from app.services.notifications.dispatcher import notification_dispatcher
-    from app.services.emergency_service import _get_incident_or_404
 
-    expires_at = datetime.now(timezone.utc).timestamp() + timeout
+    expires_at = datetime.now(UTC).timestamp() + timeout
     await notification_dispatcher.send_verification_request(
         user_id=incident.user_id,
         incident_id=str(incident.id),
         timeout_seconds=timeout,
-        expires_at=datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(),
+        expires_at=datetime.fromtimestamp(expires_at, tz=UTC).isoformat(),
     )
 
     # Push WS event to user's own connection
@@ -80,7 +78,7 @@ async def request_verification(
             "event": "verification_request",
             "incident_id": str(incident.id),
             "message": "Are you safe? Please respond.",
-            "expires_at": datetime.fromtimestamp(expires_at, tz=timezone.utc).isoformat(),
+            "expires_at": datetime.fromtimestamp(expires_at, tz=UTC).isoformat(),
         },
     )
 
@@ -107,7 +105,7 @@ async def handle_verification_response(
 
     if response == "USER_CONFIRMED_SAFE":
         incident = await update_incident_status(incident, "CANCELLED", db)
-        incident.resolved_at = datetime.now(timezone.utc)
+        incident.resolved_at = datetime.now(UTC)
         db.add(incident)
 
         await log_event(
@@ -126,7 +124,7 @@ async def handle_verification_response(
                 "incident_id": str(incident.id),
                 "status": "CANCELLED",
                 "resolved_by": "USER_CONFIRMED_SAFE",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
             },
         )
 

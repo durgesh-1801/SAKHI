@@ -16,6 +16,7 @@ IMPORTANT:
 """
 
 import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,9 +24,7 @@ from app.models.consent import UserConsent
 
 
 async def _get_consent(user_id: uuid.UUID, db: AsyncSession) -> UserConsent | None:
-    result = await db.execute(
-        select(UserConsent).where(UserConsent.user_id == user_id)
-    )
+    result = await db.execute(select(UserConsent).where(UserConsent.user_id == user_id))
     return result.scalar_one_or_none()
 
 

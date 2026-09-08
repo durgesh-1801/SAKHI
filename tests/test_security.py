@@ -10,12 +10,12 @@ Covers:
 """
 
 import uuid
-from unittest.mock import AsyncMock, patch
+from datetime import UTC
 
 import pytest
 from httpx import AsyncClient
 
-from tests.conftest import TEST_USER_ID, TEST_GUARDIAN_ID
+from tests.conftest import TEST_GUARDIAN_ID, TEST_USER_ID
 
 
 @pytest.mark.asyncio
@@ -102,8 +102,8 @@ async def test_location_endpoint_guardian_access(
     Override auth to return guardian user.
     """
     from app.auth.dependencies import get_current_user
-    from app.schemas.user import UserRead
     from app.database import get_db
+    from app.schemas.user import UserRead
     from tests.conftest import TEST_INCIDENT_ID
 
     guardian_user = UserRead(
@@ -140,8 +140,8 @@ async def test_location_endpoint_non_guardian_denied(
 ):
     """A random user who is not a trusted contact cannot access location."""
     from app.auth.dependencies import get_current_user
-    from app.schemas.user import UserRead
     from app.database import get_db
+    from app.schemas.user import UserRead
     from tests.conftest import TEST_INCIDENT_ID
 
     random_user = UserRead(
@@ -174,8 +174,9 @@ async def test_cannot_cancel_resolved_incident(
     db_session,
 ):
     """Cancelling an already-RESOLVED incident → 409 Conflict."""
+    from datetime import datetime
+
     from app.models.emergency import EmergencyIncident
-    from datetime import datetime, timezone
 
     resolved = EmergencyIncident(
         id=uuid.uuid4(),
@@ -183,7 +184,7 @@ async def test_cannot_cancel_resolved_incident(
         trigger_type="MANUAL_SOS",
         status="RESOLVED",
         risk_level="CRITICAL",
-        resolved_at=datetime.now(timezone.utc),
+        resolved_at=datetime.now(UTC),
     )
     db_session.add(resolved)
     await db_session.flush()

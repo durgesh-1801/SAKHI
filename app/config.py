@@ -6,6 +6,7 @@ Set values in a .env file (copy from .env.example).
 """
 
 from functools import lru_cache
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

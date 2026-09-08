@@ -17,7 +17,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from tests.conftest import TEST_INCIDENT_ID, TEST_USER_ID
+from tests.conftest import TEST_INCIDENT_ID
 
 
 @pytest.mark.asyncio
@@ -43,9 +43,7 @@ async def test_location_update_persists_to_db(
         )
 
     result = await db_session.execute(
-        select(IncidentLocationUpdate).where(
-            IncidentLocationUpdate.incident_id == TEST_INCIDENT_ID
-        )
+        select(IncidentLocationUpdate).where(IncidentLocationUpdate.incident_id == TEST_INCIDENT_ID)
     )
     rows = result.scalars().all()
     assert len(rows) >= 1
@@ -138,9 +136,7 @@ async def test_multiple_location_updates_accumulate(
             )
 
     result = await db_session.execute(
-        select(IncidentLocationUpdate).where(
-            IncidentLocationUpdate.incident_id == TEST_INCIDENT_ID
-        )
+        select(IncidentLocationUpdate).where(IncidentLocationUpdate.incident_id == TEST_INCIDENT_ID)
     )
     rows = result.scalars().all()
     assert len(rows) == 3

@@ -13,8 +13,6 @@ BE1 INSTRUCTIONS:
     Changing the signature will break BE3's routes.
 """
 
-from uuid import UUID
-
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 

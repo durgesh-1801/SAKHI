@@ -19,11 +19,11 @@ from typing import Any
 class NotificationRecipient:
     """Who should receive the notification."""
 
-    user_id: str | None = None          # SAKHI user ID (if registered)
-    name: str = "User"                  # Display name for the message body
-    fcm_token: str | None = None        # Firebase Cloud Messaging device token
-    phone_number: str | None = None     # For SMS channel
-    email: str | None = None            # For email channel
+    user_id: str | None = None  # SAKHI user ID (if registered)
+    name: str = "User"  # Display name for the message body
+    fcm_token: str | None = None  # Firebase Cloud Messaging device token
+    phone_number: str | None = None  # For SMS channel
+    email: str | None = None  # For email channel
 
 
 @dataclass

@@ -29,13 +29,15 @@ WebSocket protocol:
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.emergency import EmergencyIncident
+from app.schemas.user import UserRead
 from app.websocket.manager import ws_manager
 
 logger = logging.getLogger(__name__)
@@ -114,7 +116,7 @@ async def handle_websocket_connection(
             "incident_id": incident_id,
             "status": incident.status,
             "role": "owner" if is_owner else "guardian",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -143,7 +145,7 @@ async def handle_websocket_connection(
 async def _authenticate_ws_token(
     token: str,
     websocket: WebSocket,
-) -> object | None:
+) -> UserRead | None:
     """
     Validate the Bearer token before accepting the WebSocket.
 
@@ -170,7 +172,7 @@ async def _authenticate_ws_token(
 
 
 async def _handle_client_message(
-    data: dict,
+    data: dict[str, Any],
     incident: EmergencyIncident,
     is_owner: bool,
     websocket: WebSocket,
@@ -188,7 +190,11 @@ async def _handle_client_message(
             # Guardians cannot push location — only the user (incident owner) can
             await ws_manager.send_to_connection(
                 websocket,
-                {"event": "error", "code": "FORBIDDEN", "message": "Only the incident owner can send location updates."},
+                {
+                    "event": "error",
+                    "code": "FORBIDDEN",
+                    "message": "Only the incident owner can send location updates.",
+                },
             )
             return
 
@@ -203,7 +209,7 @@ async def _handle_client_message(
 
 
 async def _handle_location_update(
-    data: dict,
+    data: dict[str, Any],
     incident: EmergencyIncident,
     db: AsyncSession,
 ) -> None:

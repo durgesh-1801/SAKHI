@@ -8,14 +8,10 @@ before Alembic or create_all is called.
 """
 
 from app.database import Base  # noqa: F401
-
-# ─── BE1 ZONE ──────────────────────────────────────────────────────────────
-from app.models.user import User  # noqa: F401
+from app.models.consent import UserConsent  # noqa: F401
 
 # ─── BE2 ZONE ──────────────────────────────────────────────────────────────
 from app.models.contact import TrustedContact  # noqa: F401
-from app.models.policy import EmergencyPolicy  # noqa: F401
-from app.models.consent import UserConsent  # noqa: F401
 
 # ─── BE3 ZONE ──────────────────────────────────────────────────────────────
 from app.models.emergency import (  # noqa: F401
@@ -23,3 +19,18 @@ from app.models.emergency import (  # noqa: F401
     IncidentEvent,
     IncidentLocationUpdate,
 )
+from app.models.policy import EmergencyPolicy  # noqa: F401
+
+# ─── BE1 ZONE ──────────────────────────────────────────────────────────────
+from app.models.user import User  # noqa: F401
+
+__all__ = [
+    "Base",
+    "EmergencyIncident",
+    "EmergencyPolicy",
+    "IncidentEvent",
+    "IncidentLocationUpdate",
+    "TrustedContact",
+    "User",
+    "UserConsent",
+]

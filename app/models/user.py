@@ -6,14 +6,19 @@ ARIA / SAKHI — User Model
     DO NOT add emergency columns here — those belong to emergency.py.
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.emergency import EmergencyIncident
 
 from sqlalchemy import DateTime, String, func
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import GUID, Base
 
 
 class User(Base):
@@ -28,9 +33,7 @@ class User(Base):
 
     __tablename__ = "users"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False, index=True)
     phone_number: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -47,7 +50,7 @@ class User(Base):
     )
 
     # ─── BE3 back-references ─────────────────────────────────────────────────
-    emergency_incidents: Mapped[list["EmergencyIncident"]] = relationship(  # type: ignore[name-defined]
+    emergency_incidents: Mapped[list[EmergencyIncident]] = relationship(
         "EmergencyIncident", back_populates="user", lazy="noload"
     )
 

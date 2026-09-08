@@ -11,9 +11,8 @@ The mobile app polls or subscribes (via WebSocket) to receive these.
 
 import logging
 import uuid
-from datetime import datetime, timezone
-
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import UTC, datetime
+from typing import Any
 
 from app.services.notifications.base import (
     NotificationChannel,
@@ -38,7 +37,7 @@ class InAppNotificationChannel(NotificationChannel):
     """
 
     # Module-level store — replace with DB persistence when ready
-    _store: list[dict] = []
+    _store: list[dict[str, Any]] = []
 
     @property
     def channel_name(self) -> str:
@@ -58,7 +57,7 @@ class InAppNotificationChannel(NotificationChannel):
             "title": message.title,
             "body": message.body,
             "data": message.data,
-            "created_at": datetime.now(timezone.utc).isoformat(),
+            "created_at": datetime.now(UTC).isoformat(),
             "is_read": False,
         }
         self.__class__._store.append(record)
@@ -70,7 +69,7 @@ class InAppNotificationChannel(NotificationChannel):
         return True
 
     @classmethod
-    def get_notifications_for_user(cls, user_id: str) -> list[dict]:
+    def get_notifications_for_user(cls, user_id: str) -> list[dict[str, Any]]:
         """Return stored notifications for a user (for tests/polling endpoint)."""
         return [n for n in cls._store if n["user_id"] == user_id]
 

@@ -9,12 +9,18 @@ Tables:
   - incident_location_updates — every location ping during an active incident
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
-from typing import Any
+from enum import Enum as PyEnum
+from typing import TYPE_CHECKING, Any
 
-import sqlalchemy as sa
+if TYPE_CHECKING:
+    from app.models.user import User
+
 from sqlalchemy import (
+    JSON,
     DateTime,
     Enum,
     Float,
@@ -23,21 +29,21 @@ from sqlalchemy import (
     String,
     func,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import GUID, Base
 
 # ─── Enumerations ──────────────────────────────────────────────────────────────
 
-class RiskLevel(str, sa.Enum):
+
+class RiskLevel(str, PyEnum):
     SAFE = "SAFE"
     SUSPICIOUS = "SUSPICIOUS"
     HIGH = "HIGH"
     CRITICAL = "CRITICAL"
 
 
-class IncidentStatus(str, sa.Enum):
+class IncidentStatus(str, PyEnum):
     ACTIVE = "ACTIVE"
     VERIFYING = "VERIFYING"
     ESCALATING = "ESCALATING"
@@ -45,7 +51,7 @@ class IncidentStatus(str, sa.Enum):
     CANCELLED = "CANCELLED"
 
 
-class TriggerType(str, sa.Enum):
+class TriggerType(str, PyEnum):
     MANUAL_SOS = "MANUAL_SOS"
     AI_DETECTION = "AI_DETECTION"
     FALL_DETECTION = "FALL_DETECTION"
@@ -54,13 +60,13 @@ class TriggerType(str, sa.Enum):
     OTHER = "OTHER"
 
 
-class VerificationResponse(str, sa.Enum):
+class VerificationResponse(str, PyEnum):
     USER_CONFIRMED_SAFE = "USER_CONFIRMED_SAFE"
     USER_REQUESTED_HELP = "USER_REQUESTED_HELP"
     NO_RESPONSE = "NO_RESPONSE"
 
 
-class EventType(str, sa.Enum):
+class EventType(str, PyEnum):
     INCIDENT_CREATED = "INCIDENT_CREATED"
     VERIFICATION_REQUESTED = "VERIFICATION_REQUESTED"
     USER_CONFIRMED_SAFE = "USER_CONFIRMED_SAFE"
@@ -79,32 +85,52 @@ class EventType(str, sa.Enum):
 # ─── SQLAlchemy Enum types (reusable) ─────────────────────────────────────────
 
 risk_level_enum = Enum(
-    "SAFE", "SUSPICIOUS", "HIGH", "CRITICAL",
+    "SAFE",
+    "SUSPICIOUS",
+    "HIGH",
+    "CRITICAL",
     name="risk_level_enum",
 )
 
 incident_status_enum = Enum(
-    "ACTIVE", "VERIFYING", "ESCALATING", "RESOLVED", "CANCELLED",
+    "ACTIVE",
+    "VERIFYING",
+    "ESCALATING",
+    "RESOLVED",
+    "CANCELLED",
     name="incident_status_enum",
 )
 
 trigger_type_enum = Enum(
-    "MANUAL_SOS", "AI_DETECTION", "FALL_DETECTION",
-    "DISTRESS_DETECTION", "SAFE_JOURNEY", "OTHER",
+    "MANUAL_SOS",
+    "AI_DETECTION",
+    "FALL_DETECTION",
+    "DISTRESS_DETECTION",
+    "SAFE_JOURNEY",
+    "OTHER",
     name="trigger_type_enum",
 )
 
 event_type_enum = Enum(
-    "INCIDENT_CREATED", "VERIFICATION_REQUESTED", "USER_CONFIRMED_SAFE",
-    "USER_REQUESTED_HELP", "NO_RESPONSE", "CONTACT_NOTIFIED",
-    "LOCATION_SHARING_STARTED", "LOCATION_UPDATED", "ESCALATED",
-    "INCIDENT_RESOLVED", "INCIDENT_CANCELLED", "AI_TRIGGER_RECEIVED",
+    "INCIDENT_CREATED",
+    "VERIFICATION_REQUESTED",
+    "USER_CONFIRMED_SAFE",
+    "USER_REQUESTED_HELP",
+    "NO_RESPONSE",
+    "CONTACT_NOTIFIED",
+    "LOCATION_SHARING_STARTED",
+    "LOCATION_UPDATED",
+    "ESCALATED",
+    "INCIDENT_RESOLVED",
+    "INCIDENT_CANCELLED",
+    "AI_TRIGGER_RECEIVED",
     "CONSENT_DENIED",
     name="event_type_enum",
 )
 
 
 # ─── Models ───────────────────────────────────────────────────────────────────
+
 
 class EmergencyIncident(Base):
     """
@@ -122,11 +148,9 @@ class EmergencyIncident(Base):
         Index("ix_emergency_incidents_created_at", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
@@ -136,12 +160,8 @@ class EmergencyIncident(Base):
     trigger_type: Mapped[str] = mapped_column(
         trigger_type_enum, nullable=False, default="MANUAL_SOS"
     )
-    status: Mapped[str] = mapped_column(
-        incident_status_enum, nullable=False, default="ACTIVE", index=True
-    )
-    risk_level: Mapped[str] = mapped_column(
-        risk_level_enum, nullable=False, default="CRITICAL"
-    )
+    status: Mapped[str] = mapped_column(incident_status_enum, nullable=False, default="ACTIVE")
+    risk_level: Mapped[str] = mapped_column(risk_level_enum, nullable=False, default="CRITICAL")
     # Populated from AI engine result; null for manual SOS
     risk_score: Mapped[float | None] = mapped_column(Float, nullable=True)
 
@@ -156,11 +176,11 @@ class EmergencyIncident(Base):
 
     # ─── AI Context ───────────────────────────────────────────────────────
     # Reasons list from AI engine (e.g. ["Distress signal detected", ...])
-    ai_reasons: Mapped[list[Any] | None] = mapped_column(JSONB, nullable=True)
+    ai_reasons: Mapped[list[Any] | None] = mapped_column(JSON, nullable=True)
 
     # ─── Policy Snapshot ─────────────────────────────────────────────────
     # Snapshot of the active policy at incident creation time for auditability
-    policy_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    policy_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
 
     # ─── Escalation state ─────────────────────────────────────────────────
     # Celery task ID for the active verification timeout task
@@ -177,22 +197,20 @@ class EmergencyIncident(Base):
         onupdate=func.now(),
         nullable=False,
     )
-    resolved_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ─── Relationships ────────────────────────────────────────────────────
-    user: Mapped["User"] = relationship(  # type: ignore[name-defined]
+    user: Mapped[User] = relationship(
         "User", back_populates="emergency_incidents", lazy="noload"
     )
-    events: Mapped[list["IncidentEvent"]] = relationship(
+    events: Mapped[list[IncidentEvent]] = relationship(
         "IncidentEvent",
         back_populates="incident",
         lazy="noload",
         order_by="IncidentEvent.created_at",
         cascade="all, delete-orphan",
     )
-    location_updates: Mapped[list["IncidentLocationUpdate"]] = relationship(
+    location_updates: Mapped[list[IncidentLocationUpdate]] = relationship(
         "IncidentLocationUpdate",
         back_populates="incident",
         lazy="noload",
@@ -230,28 +248,44 @@ class IncidentEvent(Base):
         Index("ix_incident_events_created_at", "created_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     incident_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("emergency_incidents.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     event_type: Mapped[str] = mapped_column(event_type_enum, nullable=False)
     description: Mapped[str] = mapped_column(String(1000), nullable=False)
 
     # Optional structured context (contact name, risk score, etc.)
-    metadata: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    # Note: Column in DB is named 'metadata', mapped to event_metadata attribute in Python
+    event_metadata: Mapped[dict[str, Any] | None] = mapped_column("metadata", JSON, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    incident: Mapped["EmergencyIncident"] = relationship(
+    incident: Mapped[EmergencyIncident] = relationship(
         "EmergencyIncident", back_populates="events", lazy="noload"
     )
+
+    def __init__(
+        self,
+        incident_id: uuid.UUID | None = None,
+        event_type: str | None = None,
+        description: str | None = None,
+        metadata: dict[str, Any] | None = None,
+        event_metadata: dict[str, Any] | None = None,
+        **kwargs: Any,
+    ) -> None:
+        actual_metadata = metadata if metadata is not None else event_metadata
+        super().__init__(
+            incident_id=incident_id,
+            event_type=event_type,
+            description=description,
+            event_metadata=actual_metadata,
+            **kwargs,
+        )
 
     def __repr__(self) -> str:
         return f"<IncidentEvent {self.event_type} incident_id={self.incident_id}>"
@@ -275,14 +309,11 @@ class IncidentLocationUpdate(Base):
         Index("ix_location_updates_recorded_at", "recorded_at"),
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     incident_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("emergency_incidents.id", ondelete="CASCADE"),
         nullable=False,
-        index=True,
     )
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
@@ -292,7 +323,7 @@ class IncidentLocationUpdate(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    incident: Mapped["EmergencyIncident"] = relationship(
+    incident: Mapped[EmergencyIncident] = relationship(
         "EmergencyIncident", back_populates="location_updates", lazy="noload"
     )
 

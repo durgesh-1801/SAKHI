@@ -12,6 +12,7 @@ BE3 CONTRACT (do not change function signatures):
 """
 
 import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 

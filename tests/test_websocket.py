@@ -10,9 +10,7 @@ Covers:
   - get_connection_count and get_active_incident_ids
 """
 
-import asyncio
-import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

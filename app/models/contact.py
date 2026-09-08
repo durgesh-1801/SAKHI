@@ -5,14 +5,19 @@ ARIA / SAKHI — Trusted Contact Model
     BE2 should expand this with all contact fields (relationship type, etc.).
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, func
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import GUID, Base
 
 
 class TrustedContact(Base):
@@ -29,18 +34,16 @@ class TrustedContact(Base):
 
     __tablename__ = "trusted_contacts"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
     # If the contact is also a SAKHI user, link their account
     contact_user_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
     )
@@ -61,7 +64,7 @@ class TrustedContact(Base):
     )
 
     # Relationships
-    user: Mapped["User"] = relationship(  # type: ignore[name-defined]
+    user: Mapped[User] = relationship(
         "User", foreign_keys=[user_id], lazy="noload"
     )
 

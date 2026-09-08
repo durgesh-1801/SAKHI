@@ -12,21 +12,21 @@ Entry points:
   execute_no_response_escalation  — called from Celery on timeout
 """
 
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.contact import TrustedContact
 from app.models.emergency import EmergencyIncident
 from app.models.policy import EmergencyPolicy
 from app.schemas.user import UserRead
 from app.services import consent_service, contact_service
 from app.services.emergency_service import log_event, update_incident_status
 
-
 # ──────────────────────────────────────────────────────────────────────────────
 # PUBLIC ENTRY POINT — called right after incident creation
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 async def start_escalation(
     incident: EmergencyIncident,
@@ -64,6 +64,7 @@ async def start_escalation(
 # ──────────────────────────────────────────────────────────────────────────────
 # CORE ESCALATION — executes the configured policy
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 async def execute_escalation(
     incident: EmergencyIncident,
@@ -109,9 +110,7 @@ async def execute_escalation(
 
     # ── Notify primary contacts ────────────────────────────────────────────────
     if policy.notify_primary_on_no_response:
-        primary_contacts = await contact_service.get_primary_contacts(
-            incident.user_id, db
-        )
+        primary_contacts = await contact_service.get_primary_contacts(incident.user_id, db)
         await _notify_contacts(
             contacts=primary_contacts,
             incident=incident,
@@ -134,9 +133,7 @@ async def execute_escalation(
 
     # ── Notify secondary contacts ──────────────────────────────────────────────
     if policy.notify_secondary_on_no_response:
-        all_contacts = await contact_service.get_trusted_contacts(
-            incident.user_id, db
-        )
+        all_contacts = await contact_service.get_trusted_contacts(incident.user_id, db)
         secondary = [c for c in all_contacts if not c.is_primary]
         if secondary:
             await _notify_contacts(
@@ -153,6 +150,7 @@ async def execute_escalation(
 # NO-RESPONSE PATH — called from Celery task on verification timeout
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def execute_no_response_escalation(
     incident: EmergencyIncident,
     db: AsyncSession,
@@ -167,7 +165,7 @@ async def execute_no_response_escalation(
         db,
         incident.id,
         "NO_RESPONSE",
-        f"User did not respond within the configured timeout. Auto-escalating.",
+        "User did not respond within the configured timeout. Auto-escalating.",
     )
 
     from app.services.policy_service import get_policy_or_default
@@ -177,13 +175,13 @@ async def execute_no_response_escalation(
     # Build a minimal UserRead so notification service has a name
     # In production BE1 will have a real user service; use what we have.
     from sqlalchemy import select
+
     from app.models.user import User
 
     result = await db.execute(select(User).where(User.id == incident.user_id))
     user_row = result.scalar_one_or_none()
 
     from app.schemas.user import UserRead
-    import uuid as _uuid
 
     if user_row:
         user = UserRead(
@@ -212,8 +210,9 @@ async def execute_no_response_escalation(
 # INTERNAL HELPERS
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 async def _notify_contacts(
-    contacts: list,
+    contacts: list[TrustedContact],
     incident: EmergencyIncident,
     user: UserRead,
     db: AsyncSession,
@@ -249,7 +248,7 @@ async def _notify_contacts(
                     "event": "contact_notified",
                     "incident_id": str(incident.id),
                     "contact_name": contact.name,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "timestamp": datetime.now(UTC).isoformat(),
                 },
             )
         except Exception as exc:  # noqa: BLE001
@@ -287,6 +286,6 @@ async def _start_location_sharing(
         {
             "event": "location_sharing_started",
             "incident_id": str(incident.id),
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     )

@@ -12,14 +12,19 @@ ARIA / SAKHI — Emergency Policy Model
         - auto_escalate                  → should escalation happen without user confirmation?
 """
 
+from __future__ import annotations
+
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.user import User
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, func
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.database import Base
+from app.database import GUID, Base
 
 
 class EmergencyPolicy(Base):
@@ -34,11 +39,9 @@ class EmergencyPolicy(Base):
 
     __tablename__ = "emergency_policies"
 
-    id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
-    )
+    id: Mapped[uuid.UUID] = mapped_column(GUID, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
+        GUID,
         ForeignKey("users.id", ondelete="CASCADE"),
         nullable=False,
         unique=True,
@@ -47,9 +50,7 @@ class EmergencyPolicy(Base):
 
     # ─── Verification ─────────────────────────────────────────────────────
     # How many seconds to wait for user verification before auto-escalating
-    verification_timeout_seconds: Mapped[int] = mapped_column(
-        Integer, nullable=False, default=30
-    )
+    verification_timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
 
     # ─── Escalation behaviour ─────────────────────────────────────────────
     # Whether BE3 should automatically escalate on no response
@@ -82,7 +83,9 @@ class EmergencyPolicy(Base):
         nullable=False,
     )
 
-    user: Mapped["User"] = relationship("User", lazy="noload")  # type: ignore[name-defined]
+    user: Mapped[User] = relationship("User", lazy="noload")
 
     def __repr__(self) -> str:
-        return f"<EmergencyPolicy user_id={self.user_id} timeout={self.verification_timeout_seconds}s>"
+        return (
+            f"<EmergencyPolicy user_id={self.user_id} timeout={self.verification_timeout_seconds}s>"
+        )

@@ -38,7 +38,7 @@ def _init_firebase() -> bool:
 
         settings = get_settings()
 
-        if firebase_admin._apps:  # type: ignore[attr-defined]
+        if getattr(firebase_admin, "_apps", None):
             _firebase_initialized = True
             return True
 
@@ -123,9 +123,7 @@ class PushNotificationChannel(NotificationChannel):
             )
 
             response = messaging.send(fcm_message)
-            logger.info(
-                "Push sent to %s. FCM message ID: %s", recipient.name, response
-            )
+            logger.info("Push sent to %s. FCM message ID: %s", recipient.name, response)
             return True
 
         except Exception as exc:  # noqa: BLE001

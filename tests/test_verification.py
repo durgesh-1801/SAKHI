@@ -8,12 +8,10 @@ Covers:
 """
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from httpx import AsyncClient
-
-from tests.conftest import TEST_USER_ID
 
 
 @pytest.mark.asyncio
@@ -26,11 +24,12 @@ async def test_user_confirmed_safe(
     """Responding USER_CONFIRMED_SAFE → incident becomes CANCELLED."""
     incident_id = str(verifying_incident.id)
 
-    with patch(
-        "app.services.verification_service._revoke_escalation_task"
-    ) as mock_revoke, patch(
-        "app.websocket.manager.ws_manager.broadcast_to_incident",
-        new_callable=AsyncMock,
+    with (
+        patch("app.services.verification_service._revoke_escalation_task") as mock_revoke,
+        patch(
+            "app.websocket.manager.ws_manager.broadcast_to_incident",
+            new_callable=AsyncMock,
+        ),
     ):
         response = await client.post(
             f"/emergency/incidents/{incident_id}/verify",
@@ -55,13 +54,14 @@ async def test_user_requested_help(
     """Responding USER_REQUESTED_HELP → escalation executes."""
     incident_id = str(verifying_incident.id)
 
-    with patch(
-        "app.services.verification_service._revoke_escalation_task"
-    ), patch(
-        "app.services.escalation_service.execute_escalation",
-        new_callable=AsyncMock,
-        return_value=verifying_incident,
-    ) as mock_escalate:
+    with (
+        patch("app.services.verification_service._revoke_escalation_task"),
+        patch(
+            "app.services.escalation_service.execute_escalation",
+            new_callable=AsyncMock,
+            return_value=verifying_incident,
+        ) as mock_escalate,
+    ):
         response = await client.post(
             f"/emergency/incidents/{incident_id}/verify",
             json={"response": "USER_REQUESTED_HELP"},

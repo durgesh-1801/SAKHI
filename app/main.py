@@ -9,8 +9,8 @@ FastAPI application factory with:
   - Exception handlers
 """
 
-from contextlib import asynccontextmanager
 from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,7 +20,7 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
 from app.config import get_settings
-from app.database import engine
+from app.database import get_engine
 from app.models import Base  # ensures all models are registered before create_all
 
 # ─── Routers (BE3 owns) ────────────────────────────────────────────────────────
@@ -38,6 +38,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Startup
     # NOTE: In production use Alembic migrations, not create_all.
     # create_all is here only for test/local convenience.
+    engine = get_engine()
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
@@ -73,6 +74,7 @@ app.add_middleware(
 # ─── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(emergency.router, prefix="/emergency", tags=["Emergency"])
 app.include_router(emergency.ws_router, tags=["Emergency WebSocket"])
+
 
 # ─── Health Check ─────────────────────────────────────────────────────────────
 @app.get("/health", tags=["Health"], summary="Health check")

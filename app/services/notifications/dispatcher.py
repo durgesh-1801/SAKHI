@@ -15,7 +15,7 @@ Usage:
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from app.services.notifications.base import (
     NotificationChannel,
@@ -106,7 +106,7 @@ class NotificationDispatcher:
         self,
         contact: object,  # TrustedContact — typed loosely
         incident: object,  # EmergencyIncident — typed loosely
-        user: object,      # UserRead — typed loosely
+        user: object,  # UserRead — typed loosely
     ) -> None:
         """
         Send an emergency alert to a trusted contact / guardian.
@@ -131,7 +131,7 @@ class NotificationDispatcher:
         if ai_reasons:
             reason_text = "\nReason: " + ", ".join(ai_reasons[:2])
 
-        now = datetime.now(timezone.utc).strftime("%I:%M %p")
+        now = datetime.now(UTC).strftime("%I:%M %p")
 
         message = NotificationMessage(
             title="🚨 Emergency Alert — ARIA",

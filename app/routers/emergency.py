@@ -19,9 +19,9 @@ WebSocket endpoint:
 """
 
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import APIRouter, Depends, Request, WebSocket, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -31,7 +31,6 @@ from app.schemas.emergency import (
     AITriggerRequest,
     EmergencyIncidentRead,
     EmergencyIncidentWithTimeline,
-    IncidentEventRead,
     LocationResponse,
     SOSRequest,
     SOSResponse,
@@ -39,12 +38,13 @@ from app.schemas.emergency import (
     VerifyResponse,
 )
 from app.schemas.user import UserRead
-from app.services import contact_service, emergency_service
-from app.services.escalation_service import (
-    handle_verification_response,
-    start_escalation,
+from app.services import (
+    consent_service,
+    contact_service,
+    emergency_service,
+    escalation_service,
+    verification_service,
 )
-from app.services import consent_service
 from app.websocket.manager import ws_manager
 
 router = APIRouter()
@@ -57,6 +57,7 @@ ws_router = APIRouter()
 # ──────────────────────────────────────────────────────────────────────────────
 # POST /emergency/sos
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @router.post(
     "/sos",
@@ -95,7 +96,7 @@ async def trigger_sos(
     await db.flush()
 
     # Start escalation pipeline (non-blocking — schedules Celery tasks)
-    await start_escalation(
+    await escalation_service.start_escalation(
         incident=incident,
         user=current_user,
         policy=policy,
@@ -114,6 +115,7 @@ async def trigger_sos(
 # ──────────────────────────────────────────────────────────────────────────────
 # POST /emergency/trigger  (BE1 integration point)
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @router.post(
     "/trigger",
@@ -174,7 +176,7 @@ async def trigger_from_ai(
     )
 
     # Start escalation — will send verification first, then escalate on no response
-    await start_escalation(
+    await escalation_service.start_escalation(
         incident=incident,
         user=current_user,
         policy=policy,
@@ -198,6 +200,7 @@ async def trigger_from_ai(
 # GET /emergency/incidents
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @router.get(
     "/incidents",
     response_model=list[EmergencyIncidentRead],
@@ -219,6 +222,7 @@ async def list_incidents(
 # GET /emergency/incidents/{incident_id}
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @router.get(
     "/incidents/{incident_id}",
     response_model=EmergencyIncidentRead,
@@ -238,6 +242,7 @@ async def get_incident(
 # ──────────────────────────────────────────────────────────────────────────────
 # GET /emergency/incidents/{incident_id}/timeline
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @router.get(
     "/incidents/{incident_id}/timeline",
@@ -259,6 +264,7 @@ async def get_incident_timeline(
 # POST /emergency/incidents/{incident_id}/verify
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @router.post(
     "/incidents/{incident_id}/verify",
     response_model=VerifyResponse,
@@ -278,7 +284,7 @@ async def verify_incident(
         incident_id=incident_id, user_id=current_user.id, db=db
     )
 
-    updated_incident = await handle_verification_response(
+    updated_incident = await verification_service.handle_verification_response(
         incident=incident,
         response=payload.response,
         user=current_user,
@@ -301,6 +307,7 @@ async def verify_incident(
 # ──────────────────────────────────────────────────────────────────────────────
 # POST /emergency/incidents/{incident_id}/cancel
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @router.post(
     "/incidents/{incident_id}/cancel",
@@ -325,7 +332,7 @@ async def cancel_incident(
             "incident_id": str(incident_id),
             "status": "CANCELLED",
             "resolved_by": "USER",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -339,6 +346,7 @@ async def cancel_incident(
 # ──────────────────────────────────────────────────────────────────────────────
 # POST /emergency/incidents/{incident_id}/resolve
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @router.post(
     "/incidents/{incident_id}/resolve",
@@ -362,7 +370,7 @@ async def resolve_incident(
             "incident_id": str(incident_id),
             "status": "RESOLVED",
             "resolved_by": "USER",
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
         },
     )
 
@@ -377,6 +385,7 @@ async def resolve_incident(
 # GET /emergency/incidents/{incident_id}/location
 # Guardian-only endpoint — no public access
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @router.get(
     "/incidents/{incident_id}/location",
@@ -393,14 +402,14 @@ async def get_incident_location(
     db: AsyncSession = Depends(get_db),
 ) -> LocationResponse:
     from sqlalchemy import select
+
     from app.models.emergency import EmergencyIncident
 
-    result = await db.execute(
-        select(EmergencyIncident).where(EmergencyIncident.id == incident_id)
-    )
+    result = await db.execute(select(EmergencyIncident).where(EmergencyIncident.id == incident_id))
     incident = result.scalar_one_or_none()
     if incident is None:
         from fastapi import HTTPException
+
         raise HTTPException(status_code=404, detail="Incident not found.")
 
     # Authorization: must be owner OR trusted contact of owner
@@ -413,6 +422,7 @@ async def get_incident_location(
 
     if not (is_owner or is_guardian):
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You are not authorized to view this incident's location.",
@@ -421,6 +431,7 @@ async def get_incident_location(
     # Only expose location for active incidents
     if not incident.is_active and incident.latitude is None:
         from fastapi import HTTPException
+
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No location data available for this incident.",
@@ -440,6 +451,7 @@ async def get_incident_location(
 # WS /ws/emergency/{incident_id}
 # Real-time guardian channel
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @ws_router.websocket("/ws/emergency/{incident_id}")
 async def emergency_websocket(

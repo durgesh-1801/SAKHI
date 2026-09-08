@@ -8,13 +8,13 @@ Provides:
   - Helper fixtures for incidents, contacts, policy
 """
 
-import asyncio
+import os
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
+
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -41,12 +41,10 @@ TestSessionLocal = async_sessionmaker(
 )
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def setup_test_db():
-    """Create all tables once per test session."""
+    """Create all tables fresh per test."""
     async with test_engine.begin() as conn:
-        # SQLite doesn't support PostgreSQL enums — use String for enum columns
-        # The models use Enum(name=...) which SQLite stores as VARCHAR
         await conn.run_sync(Base.metadata.create_all)
     yield
     async with test_engine.begin() as conn:
@@ -68,6 +66,7 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
       - Test DB injected via dependency override
       - Auth bypassed with a fixed test user
     """
+
     # Override DB dependency
     async def override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
@@ -103,6 +102,7 @@ TEST_INCIDENT_ID = uuid.UUID("cccccccc-cccc-cccc-cccc-cccccccccccc")
 
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
+
 
 @pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> Any:

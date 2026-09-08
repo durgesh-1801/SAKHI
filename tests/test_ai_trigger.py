@@ -8,7 +8,6 @@ Covers:
   - Risk score and AI reasons stored on incident
 """
 
-import uuid
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -25,9 +24,7 @@ async def test_ai_trigger_creates_verifying_incident(
     test_consent,
 ):
     """Valid AI trigger with consent → VERIFYING incident created."""
-    with patch(
-        "app.services.escalation_service.start_escalation", new_callable=AsyncMock
-    ):
+    with patch("app.services.escalation_service.start_escalation", new_callable=AsyncMock):
         response = await client.post(
             "/emergency/trigger",
             json={
