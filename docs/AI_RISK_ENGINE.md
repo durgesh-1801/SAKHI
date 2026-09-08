@@ -189,8 +189,50 @@ To upgrade any detector to an ML model (e.g., ONNX model, Whisper audio classifi
 
 ---
 
-## 8. Limitations
+## 8. Speech-to-Text (STT) & Audio Distress Pipeline
+
+The AI Risk Engine features an integrated Speech-to-Text (STT) pipeline using **`faster-whisper`** (v1.2.1) for local, offline transcription and distress keyword recognition.
+
+### Pipeline Flow:
+```
+Audio Upload (.wav, .mp3, .m4a, .ogg, .flac)
+       ↓
+Filename & MIME validation (max 10MB ceiling)
+       ↓
+Backend 2 Consent Check (ai_detection_permitted, audio_analysis_permitted)
+       ↓
+Byte & Integrity Validation
+       ↓
+Acoustic Distress Extraction (energy/amplitude scream heuristic: +35.0 weight)
+       ↓
+Offline Whisper STT Inference (faster-whisper)
+       ↓
+Multilingual Distress Keyword Detection (English + Hindi/Hinglish: +25.0 weight)
+       ↓
+Existing Risk Engine Evaluation (clamped 0–100 score)
+       ↓
+Explainable Risk Assessment
+```
+
+### Configuration Concepts:
+All Whisper settings are configurable via environment variables:
+- `WHISPER_MODEL_SIZE` (default: `"tiny"`): Whisper model variant (`tiny`, `base`, `small`, `medium`, `large-v3`).
+- `WHISPER_MODEL_PATH` (default: `None`): Local custom directory or HuggingFace repo path.
+- `WHISPER_DEVICE` (default: `"cpu"`): Inference device (`cpu` or `cuda`).
+- `WHISPER_COMPUTE_TYPE` (default: `"int8"`): Quantization type (`int8`, `float16`, `float32`).
+- `WHISPER_LANGUAGE` (default: `None`/`"auto"`): Spoken language code or automatic detection.
+
+### Privacy & Safety Guarantees:
+- **No Raw Audio Persistence**: Audio bytes are held in secure temporary storage only during inference and deterministically unlinked in `try...finally` blocks.
+- **No Transcript Storage**: Full transcripts are never saved to any database or external cloud service.
+- **No Sensitive Transcript Logging**: Audit logs record speech metadata (duration, detected language, character count, keyword flags), never raw user utterances.
+- **Fail-Safe Integrity**: Whisper errors, corrupted audio payloads, or missing models explicitly raise HTTP 422/500 errors and **NEVER** silently default to `SAFE`.
+
+---
+
+## 9. Limitations
 
 1. **Rule-Based Baseline**: Initial weights are heuristic defaults and require tuning as real-world anonymized user feedback and test simulations become available.
 2. **Deterministic Inputs**: The engine relies on accurate feature signals from edge devices / upstream sensor processors.
 3. **No Autonomous Dispatch**: The engine does not interact with emergency services. Downstream services must handle consent and verification flows.
+4. **Local Hardware Constraints**: Offline Whisper CPU inference latency scales with audio length and model size (`tiny` recommended for low-latency local execution).
