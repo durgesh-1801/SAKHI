@@ -15,21 +15,16 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from app.config import get_settings
 from app.database import get_engine
+from app.limiter import limiter
 from app.models import Base  # ensures all models are registered before create_all
-
-# ─── Routers (BE3 owns) ────────────────────────────────────────────────────────
 from app.routers import emergency
 
 settings = get_settings()
-
-# ─── Rate Limiter ─────────────────────────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address)
 
 
 @asynccontextmanager

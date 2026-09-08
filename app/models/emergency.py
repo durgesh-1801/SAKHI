@@ -200,9 +200,7 @@ class EmergencyIncident(Base):
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # ─── Relationships ────────────────────────────────────────────────────
-    user: Mapped[User] = relationship(
-        "User", back_populates="emergency_incidents", lazy="noload"
-    )
+    user: Mapped[User] = relationship("User", back_populates="emergency_incidents", lazy="noload")
     events: Mapped[list[IncidentEvent]] = relationship(
         "IncidentEvent",
         back_populates="incident",

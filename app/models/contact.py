@@ -64,9 +64,7 @@ class TrustedContact(Base):
     )
 
     # Relationships
-    user: Mapped[User] = relationship(
-        "User", foreign_keys=[user_id], lazy="noload"
-    )
+    user: Mapped[User] = relationship("User", foreign_keys=[user_id], lazy="noload")
 
     def __repr__(self) -> str:
         return f"<TrustedContact id={self.id} user_id={self.user_id} name={self.name}>"

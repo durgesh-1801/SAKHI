@@ -97,6 +97,14 @@ async def handle_verification_response(
     USER_CONFIRMED_SAFE → cancel timeout task, cancel incident.
     USER_REQUESTED_HELP → cancel timeout task, escalate immediately.
     """
+    if incident.status != "VERIFYING":
+        from fastapi import HTTPException, status
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Cannot verify incident in status '{incident.status}'. Verification is only valid for incidents in 'VERIFYING' status.",
+        )
+
     # Revoke the pending Celery timeout task if it exists
     if incident.escalation_task_id:
         _revoke_escalation_task(incident.escalation_task_id)

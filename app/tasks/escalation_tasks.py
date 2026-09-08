@@ -37,19 +37,30 @@ def handle_no_response_task(self: Any, incident_id: str) -> dict[str, Any]:
     This task runs in a Celery worker (separate process).
     It creates its own async event loop to call async services.
     """
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         result = loop.run_until_complete(_run_no_response(incident_id))
         return result
     except Exception as exc:  # noqa: BLE001
         raise self.retry(exc=exc) from exc
     finally:
+        try:
+            from app.database import get_engine
+
+            loop.run_until_complete(get_engine().dispose())
+        except Exception:  # noqa: BLE001
+            pass
         loop.close()
 
 
 async def _run_no_response(incident_id: str) -> dict[str, Any]:
     """Async implementation called from the sync Celery task."""
+    try:
+        incident_uuid = uuid.UUID(incident_id)
+    except (ValueError, AttributeError):
+        return {"skipped": True, "reason": "Invalid incident ID format"}
+
     from sqlalchemy import select
 
     from app.database import AsyncSessionLocal
@@ -58,7 +69,7 @@ async def _run_no_response(incident_id: str) -> dict[str, Any]:
 
     async with AsyncSessionLocal() as db:
         result = await db.execute(
-            select(EmergencyIncident).where(EmergencyIncident.id == uuid.UUID(incident_id))
+            select(EmergencyIncident).where(EmergencyIncident.id == incident_uuid)
         )
         incident = result.scalar_one_or_none()
 

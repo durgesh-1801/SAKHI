@@ -26,12 +26,15 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
+from app.config import get_settings
 from app.database import get_db
+from app.limiter import limiter
 from app.schemas.emergency import (
     AITriggerRequest,
     EmergencyIncidentRead,
     EmergencyIncidentWithTimeline,
     LocationResponse,
+    LocationUpdateRequest,
     SOSRequest,
     SOSResponse,
     VerifyRequest,
@@ -43,15 +46,16 @@ from app.services import (
     contact_service,
     emergency_service,
     escalation_service,
+    location_service,
     verification_service,
 )
 from app.websocket.manager import ws_manager
 
 router = APIRouter()
 ws_router = APIRouter()
+settings = get_settings()
 
 # ─── Rate limiting (applied at app level via slowapi) ─────────────────────────
-# SOS is limited to SOS_RATE_LIMIT_PER_MINUTE per user (configured in main.py)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -70,6 +74,7 @@ ws_router = APIRouter()
         "Rate-limited to prevent accidental spam."
     ),
 )
+@limiter.limit(f"{settings.SOS_RATE_LIMIT_PER_MINUTE}/minute")
 async def trigger_sos(
     request: Request,
     payload: SOSRequest,
@@ -146,6 +151,15 @@ async def trigger_from_ai(
         BE1 must pass the target user_id in the payload.
         BE1 should coordinate with BE3 on service-account auth.
     """
+    # Authorization gate: non-admin/non-service caller must match target user
+    if current_user.id != payload.user_id:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to trigger an emergency for another user.",
+        )
+
     # Consent gate — do not act on AI result without user's consent
     can_act = await consent_service.can_act_on_ai_result(payload.user_id, db)
     if not can_act:
@@ -436,6 +450,57 @@ async def get_incident_location(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="No location data available for this incident.",
         )
+
+    return LocationResponse(
+        incident_id=incident.id,
+        latitude=incident.latitude,
+        longitude=incident.longitude,
+        location_accuracy=incident.location_accuracy,
+        location_updated_at=incident.location_updated_at,
+        status=incident.status,
+    )
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# POST /emergency/incidents/{incident_id}/location
+# Mobile app location update (REST fallback when WS reconnects)
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+@router.post(
+    "/incidents/{incident_id}/location",
+    response_model=LocationResponse,
+    summary="Push location update for an active incident (incident owner only)",
+    description=(
+        "Used by mobile clients to send location updates via REST as a fallback. "
+        "Only the incident owner can send location updates. Incident must be active."
+    ),
+)
+async def update_incident_location_rest(
+    incident_id: uuid.UUID,
+    payload: LocationUpdateRequest,
+    current_user: UserRead = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> LocationResponse:
+    incident = await emergency_service.get_incident(
+        incident_id=incident_id, user_id=current_user.id, db=db
+    )
+    if not incident.is_active:
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Incident is not active (status: {incident.status}).",
+        )
+
+    await location_service.process_location_update(
+        incident=incident,
+        latitude=payload.latitude,
+        longitude=payload.longitude,
+        accuracy=payload.accuracy,
+        db=db,
+    )
+    await db.commit()
 
     return LocationResponse(
         incident_id=incident.id,

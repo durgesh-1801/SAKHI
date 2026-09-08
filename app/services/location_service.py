@@ -37,6 +37,11 @@ async def process_location_update(
     3. Log a LOCATION_UPDATED timeline event.
     4. Broadcast to all WebSocket subscribers (guardians + owner).
     """
+    # Capture previous coordinates to evaluate significant change
+    old_lat = incident.latitude
+    old_lon = incident.longitude
+    is_first_update = incident.location_updated_at is None
+
     # 1 & 2: Persist history + update latest location on incident
     await update_incident_location(
         incident=incident,
@@ -46,12 +51,9 @@ async def process_location_update(
         db=db,
     )
 
-    # 3: Timeline event (not every update — only if significant change or first update)
-    # To avoid flooding the timeline, log every 10th update or first update.
-    # We use the existing location history count as a proxy — simple and effective.
-    should_log_event = (
-        incident.location_updated_at is None  # first update
-        or _is_significant_change(incident.latitude, incident.longitude, latitude, longitude)
+    # 3: Timeline event (only if first update or significant coordinate delta)
+    should_log_event = is_first_update or _is_significant_change(
+        old_lat, old_lon, latitude, longitude
     )
 
     if should_log_event:

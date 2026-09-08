@@ -223,6 +223,30 @@ Base path: `/emergency`
 }
 ```
 
+### 3.8 Push Location Update (REST Fallback)
+- **Endpoint**: `POST /emergency/incidents/{incident_id}/location`
+- **Auth**: Bearer JWT (Incident owner only)
+- **Purpose**: Fallback for mobile native background geolocation services when WebSocket drops.
+- **Request Body**:
+```json
+{
+  "latitude": 26.8432,
+  "longitude": 75.5651,
+  "accuracy": 5.0
+}
+```
+- **Response** (`200 OK`):
+```json
+{
+  "incident_id": "7f7943d0-7a0e-473d-bd88-d227560b457e",
+  "latitude": 26.8432,
+  "longitude": 75.5651,
+  "accuracy": 5.0,
+  "location_updated_at": "2026-09-08T12:00:00Z",
+  "status": "ACTIVE"
+}
+```
+
 ---
 
 ## 4. Realtime WebSocket API

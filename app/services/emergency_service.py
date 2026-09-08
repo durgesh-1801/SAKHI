@@ -228,6 +228,13 @@ async def cancel_incident(
     _assert_owner(incident, user_id)
     _assert_active(incident)
 
+    # Revoke pending Celery timeout task if scheduled
+    if incident.escalation_task_id:
+        from app.services.verification_service import _revoke_escalation_task
+
+        _revoke_escalation_task(incident.escalation_task_id)
+        incident.escalation_task_id = None
+
     incident.status = "CANCELLED"
     incident.resolved_at = datetime.now(UTC)
     db.add(incident)
@@ -254,6 +261,21 @@ async def resolve_incident(
 
     if incident.status == "RESOLVED":
         return incident  # idempotent
+
+    if incident.status == "CANCELLED":
+        from fastapi import HTTPException
+
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot resolve a cancelled incident.",
+        )
+
+    # Revoke pending Celery timeout task if scheduled
+    if incident.escalation_task_id:
+        from app.services.verification_service import _revoke_escalation_task
+
+        _revoke_escalation_task(incident.escalation_task_id)
+        incident.escalation_task_id = None
 
     incident.status = "RESOLVED"
     incident.resolved_at = datetime.now(UTC)

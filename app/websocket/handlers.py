@@ -122,7 +122,30 @@ async def handle_websocket_connection(
 
     try:
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await websocket.receive_json()
+            except (ValueError, TypeError):
+                await ws_manager.send_to_connection(
+                    websocket,
+                    {
+                        "event": "error",
+                        "code": "INVALID_JSON",
+                        "message": "Malformed JSON payload.",
+                    },
+                )
+                continue
+
+            if not isinstance(data, dict):
+                await ws_manager.send_to_connection(
+                    websocket,
+                    {
+                        "event": "error",
+                        "code": "INVALID_PAYLOAD",
+                        "message": "Payload must be a JSON object.",
+                    },
+                )
+                continue
+
             await _handle_client_message(
                 data=data,
                 incident=incident,
@@ -198,7 +221,12 @@ async def _handle_client_message(
             )
             return
 
-        await _handle_location_update(data=data, incident=incident, db=db)
+        await _handle_location_update(
+            data=data,
+            incident=incident,
+            websocket=websocket,
+            db=db,
+        )
         return
 
     # Unknown event
@@ -211,6 +239,7 @@ async def _handle_client_message(
 async def _handle_location_update(
     data: dict[str, Any],
     incident: EmergencyIncident,
+    websocket: WebSocket,
     db: AsyncSession,
 ) -> None:
     """
@@ -219,25 +248,62 @@ async def _handle_location_update(
     Updates the incident's latest location and broadcasts to all
     connections in the room (including guardians).
     """
+    import math
+
     try:
         latitude = float(data["latitude"])
         longitude = float(data["longitude"])
         accuracy = float(data["accuracy"]) if data.get("accuracy") is not None else None
 
-        # Validate ranges
-        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+        if (
+            math.isnan(latitude)
+            or math.isinf(latitude)
+            or math.isnan(longitude)
+            or math.isinf(longitude)
+            or not (-90.0 <= latitude <= 90.0)
+            or not (-180.0 <= longitude <= 180.0)
+        ):
+            await ws_manager.send_to_connection(
+                websocket,
+                {
+                    "event": "error",
+                    "code": "INVALID_LOCATION",
+                    "message": "Coordinates out of valid range (-90..90, -180..180).",
+                },
+            )
             return
 
     except (KeyError, ValueError, TypeError):
+        await ws_manager.send_to_connection(
+            websocket,
+            {
+                "event": "error",
+                "code": "INVALID_LOCATION",
+                "message": "Invalid or missing latitude/longitude in payload.",
+            },
+        )
         return
 
-    if not incident.is_active:
-        return  # Don't update location for resolved/cancelled incidents
+    # Refresh incident state from DB to avoid acting on stale in-memory status
+    result = await db.execute(select(EmergencyIncident).where(EmergencyIncident.id == incident.id))
+    fresh_incident = result.scalar_one_or_none()
+    current_incident = fresh_incident if fresh_incident is not None else incident
+
+    if not current_incident.is_active:
+        await ws_manager.send_to_connection(
+            websocket,
+            {
+                "event": "error",
+                "code": "INCIDENT_INACTIVE",
+                "message": f"Incident is no longer active (status: {current_incident.status}).",
+            },
+        )
+        return
 
     from app.services.location_service import process_location_update
 
     await process_location_update(
-        incident=incident,
+        incident=current_incident,
         latitude=latitude,
         longitude=longitude,
         accuracy=accuracy,
