@@ -1,3 +1,9 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
 # Python Bytecode & Cache
 __pycache__/
 *.py[cod]
@@ -14,6 +20,15 @@ env/
 venv/
 ENV/
 
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
 # Database files
 *.db
 *.sqlite
