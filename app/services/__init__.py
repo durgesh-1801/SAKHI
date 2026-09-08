@@ -1,3 +1,4 @@
+"""app/services package."""
 from app.services.user_service import user_service, UserService
 from app.services.auth_service import auth_service, AuthService
 from app.services.contact_service import contact_service, ContactService

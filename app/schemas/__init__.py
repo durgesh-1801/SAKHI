@@ -1,3 +1,4 @@
+"""app/schemas package."""
 from app.schemas.auth import LoginRequest, TokenResponse, TokenPayload
 from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserBase
 from app.schemas.contact import ContactCreate, ContactUpdate, ContactResponse, ContactBase

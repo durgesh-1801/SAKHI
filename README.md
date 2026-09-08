@@ -222,6 +222,21 @@ Example output:
 
 ---
 
+## ⚡ Backend Architecture & Emergency API (BE3)
+
+The emergency management and real-time communication subsystem (Backend Engineer 3) is implemented with FastAPI, async SQLAlchemy, Celery, Redis, and WebSockets.
+
+Comprehensive technical documentation is available in [docs/BE3_EMERGENCY_REALTIME.md](docs/BE3_EMERGENCY_REALTIME.md):
+- **Manual SOS & AI Triggers**: `POST /emergency/sos`, `POST /emergency/trigger`
+- **Verification Flow**: `POST /emergency/incidents/{id}/verify`
+- **Policy-Driven Escalation**: Celery timeout tasks & cascade notifications
+- **Realtime WebSocket Channel**: `WS /ws/emergency/{id}` (room-based pub/sub for owner & authorized guardians)
+- **Secure Location Streaming**: Authenticated pings & authorized guardian map access
+- **Test Suite**: 37 unit and integration tests passing (`python -m pytest tests/ -v`)
+
+
+---
+
 ## 🤝 Contributing
 
 Contributions, ideas, and feedback are welcome. If you'd like to help build SAKHI, feel free to open an issue or submit a pull request.
