@@ -1,0 +1,88 @@
+"""
+ARIA / SAKHI — Emergency Policy Model
+=======================================
+⚠️  BE2 ZONE — Minimal stub. BE2 owns full CRUD.
+    BE3 reads this model to execute the escalation policy.
+
+    KEY FIELDS BE3 READS:
+        - verification_timeout_seconds   → how long to wait for user response
+        - notify_primary_on_no_response  → should primary contact be notified on timeout?
+        - notify_secondary_on_no_response→ should secondary contact also be notified?
+        - share_location_on_escalation   → should live location be shared?
+        - auto_escalate                  → should escalation happen without user confirmation?
+"""
+
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.database import Base
+
+
+class EmergencyPolicy(Base):
+    """
+    User-configured emergency response policy.
+
+    BE2 INSTRUCTIONS:
+        Expand with all policy configuration options.
+        Keep all fields listed below — BE3 reads them during escalation.
+        Do not rename the table `emergency_policies`.
+    """
+
+    __tablename__ = "emergency_policies"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+
+    # ─── Verification ─────────────────────────────────────────────────────
+    # How many seconds to wait for user verification before auto-escalating
+    verification_timeout_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=30
+    )
+
+    # ─── Escalation behaviour ─────────────────────────────────────────────
+    # Whether BE3 should automatically escalate on no response
+    auto_escalate: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    # Whether to notify the primary contact
+    notify_primary_on_no_response: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+
+    # Whether to notify secondary contacts
+    notify_secondary_on_no_response: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
+
+    # Whether to share live location with contacts
+    share_location_on_escalation: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True
+    )
+
+    # BE2 adds: minimum risk threshold for auto-escalation, notification channels, etc.
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship("User", lazy="noload")  # type: ignore[name-defined]
+
+    def __repr__(self) -> str:
+        return f"<EmergencyPolicy user_id={self.user_id} timeout={self.verification_timeout_seconds}s>"
