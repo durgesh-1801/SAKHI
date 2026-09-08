@@ -103,6 +103,12 @@ class JourneyService:
         if journey.status == JourneyStatus.COMPLETED.value:
             return journey
 
+        if journey.status == JourneyStatus.CANCELLED.value:
+            raise BadRequestException("Cannot end a journey that has already been cancelled")
+
+        if journey.status == JourneyStatus.PLANNED.value:
+            raise BadRequestException("Cannot end a journey that has not started yet. Please start or cancel it.")
+
         journey.status = JourneyStatus.COMPLETED.value
         journey.ended_at = get_utc_now()
         db.commit()

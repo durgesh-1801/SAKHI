@@ -39,18 +39,14 @@ class PolicyService:
     def update_policy(db: Session, user_id: str, policy_in: PolicyUpdate) -> EmergencyPolicy:
         policy = PolicyService.get_or_create_policy(db, user_id)
 
-        # Validate Contact references if provided
-        target_primary = policy.primary_contact_id if policy_in.primary_contact_id is None else policy_in.primary_contact_id
-        target_secondary = policy.secondary_contact_id if policy_in.secondary_contact_id is None else policy_in.secondary_contact_id
-
-        if policy_in.primary_contact_id is not None:
+        if "primary_contact_id" in policy_in.model_fields_set:
             if policy_in.primary_contact_id:
                 PolicyService.validate_contact_ownership(db, policy_in.primary_contact_id, user_id, "primary")
                 policy.primary_contact_id = policy_in.primary_contact_id
             else:
                 policy.primary_contact_id = None
 
-        if policy_in.secondary_contact_id is not None:
+        if "secondary_contact_id" in policy_in.model_fields_set:
             if policy_in.secondary_contact_id:
                 PolicyService.validate_contact_ownership(db, policy_in.secondary_contact_id, user_id, "secondary")
                 policy.secondary_contact_id = policy_in.secondary_contact_id

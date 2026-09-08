@@ -121,3 +121,39 @@ def test_logout(client, user_a_headers):
     response = client.post("/api/v1/auth/logout", headers=user_a_headers)
     assert response.status_code == 200
     assert response.json()["message"] == "Successfully logged out"
+
+
+def test_inactive_user_cannot_login(client, user_a, db_session):
+    user_a.is_active = False
+    db_session.commit()
+
+    response = client.post("/api/v1/auth/login", json={"email": user_a.email, "password": "SecurePassword123!"})
+    assert response.status_code == 401
+    assert "inactive" in response.json()["error"]["message"] or "deactivated" in response.json()["error"]["message"]
+
+
+def test_inactive_user_blocked_on_protected_endpoint(client, user_a, user_a_headers, db_session):
+    user_a.is_active = False
+    db_session.commit()
+
+    response = client.get("/api/v1/auth/me", headers=user_a_headers)
+    assert response.status_code == 401
+    assert "inactive" in response.json()["error"]["message"]
+
+
+def test_tampered_jwt_signature_rejected(client, user_a_headers):
+    token = user_a_headers["Authorization"].replace("Bearer ", "")
+    tampered_token = token[:-5] + "XXXXX"
+    response = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {tampered_token}"})
+    assert response.status_code == 401
+
+
+def test_register_whitespace_name_rejected(client):
+    payload = {
+        "name": "    ",
+        "email": "whitespace@sakhi.safe",
+        "phone": "+919123456780",
+        "password": "ValidPassword123!"
+    }
+    response = client.post("/api/v1/auth/register", json=payload)
+    assert response.status_code == 422

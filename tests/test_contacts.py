@@ -95,3 +95,12 @@ def test_contact_ownership_isolation(client, user_a_headers, user_b_headers):
     res_b_list = client.get("/api/v1/contacts", headers=user_b_headers)
     assert res_b_list.status_code == 200
     assert len(res_b_list.json()) == 0
+
+
+def test_create_contact_whitespace_name_rejected(client, user_a_headers):
+    bad_contact = {
+        "name": "   ",
+        "phone": "+919811122233"
+    }
+    response = client.post("/api/v1/contacts", json=bad_contact, headers=user_a_headers)
+    assert response.status_code == 422

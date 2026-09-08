@@ -110,3 +110,57 @@ def test_journey_ownership_isolation(client, user_a_headers, user_b_headers):
     # User B cannot cancel User A's journey
     res_cancel = client.post(f"/api/v1/journeys/{j_a['id']}/cancel", headers=user_b_headers)
     assert res_cancel.status_code == 403
+
+
+def test_cannot_end_planned_or_cancelled_journey(client, user_a_headers):
+    # 1. Planned journey cannot be ended before starting
+    j_planned = client.post(
+        "/api/v1/journeys",
+        json={"origin": "Start Place", "destination": "End Place", "expected_duration": 15, "auto_start": False},
+        headers=user_a_headers
+    ).json()
+
+    res_end_planned = client.post(f"/api/v1/journeys/{j_planned['id']}/end", headers=user_a_headers)
+    assert res_end_planned.status_code == 400
+    assert "not started" in res_end_planned.json()["error"]["message"]
+
+    # 2. Cancel the planned journey
+    client.post(f"/api/v1/journeys/{j_planned['id']}/cancel", headers=user_a_headers)
+
+    # 3. Cancelled journey cannot be ended
+    res_end_cancelled = client.post(f"/api/v1/journeys/{j_planned['id']}/end", headers=user_a_headers)
+    assert res_end_cancelled.status_code == 400
+    assert "cancelled" in res_end_cancelled.json()["error"]["message"]
+
+
+def test_journey_location_whitespace_rejected(client, user_a_headers):
+    bad_journey = {
+        "origin": "   ",
+        "destination": "Valid Destination",
+        "expected_duration": 30
+    }
+    response = client.post("/api/v1/journeys", json=bad_journey, headers=user_a_headers)
+    assert response.status_code == 422
+
+
+def test_journey_idempotent_actions(client, user_a_headers):
+    j = client.post(
+        "/api/v1/journeys",
+        json={"origin": "Station", "destination": "Airport", "expected_duration": 50, "auto_start": True},
+        headers=user_a_headers
+    ).json()
+
+    # Re-starting an already active journey returns the active journey
+    start_again = client.post(f"/api/v1/journeys/{j['id']}/start", headers=user_a_headers)
+    assert start_again.status_code == 200
+    assert start_again.json()["status"] == "ACTIVE"
+
+    # End the journey
+    end_once = client.post(f"/api/v1/journeys/{j['id']}/end", headers=user_a_headers)
+    assert end_once.status_code == 200
+    assert end_once.json()["status"] == "COMPLETED"
+
+    # Re-ending an already completed journey is idempotent
+    end_again = client.post(f"/api/v1/journeys/{j['id']}/end", headers=user_a_headers)
+    assert end_again.status_code == 200
+    assert end_again.json()["status"] == "COMPLETED"

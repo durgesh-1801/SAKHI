@@ -12,6 +12,14 @@ class ContactBase(BaseModel):
     priority: int = Field(default=1, ge=1, le=10, description="Escalation priority (1 is highest)")
     verified: bool = Field(default=False, description="Whether contact's phone has been verified")
 
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: str) -> str:
+        cleaned = v.strip()
+        if len(cleaned) < 2:
+            raise ValueError("Contact name must contain at least 2 non-whitespace characters.")
+        return cleaned
+
     @field_validator("phone")
     @classmethod
     def validate_phone(cls, v: str) -> str:
@@ -28,6 +36,16 @@ class ContactUpdate(BaseModel):
     relationship_type: Optional[str] = Field(None, max_length=60)
     priority: Optional[int] = Field(None, ge=1, le=10)
     verified: Optional[bool] = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            cleaned = v.strip()
+            if len(cleaned) < 2:
+                raise ValueError("Contact name must contain at least 2 non-whitespace characters.")
+            return cleaned
+        return v
 
     @field_validator("phone")
     @classmethod

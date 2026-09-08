@@ -90,3 +90,34 @@ def test_contact_deletion_unlinks_from_policy(client, user_a_headers):
     # Check policy -> primary_contact_id should now be None
     policy = client.get("/api/v1/emergency-policy", headers=user_a_headers).json()
     assert policy["primary_contact_id"] is None
+
+
+def test_explicitly_clear_contacts_with_null(client, user_a_headers):
+    c1 = client.post("/api/v1/contacts", json={"name": "Temp1", "phone": "+919800000011", "priority": 1}, headers=user_a_headers).json()
+    c2 = client.post("/api/v1/contacts", json={"name": "Temp2", "phone": "+919800000022", "priority": 2}, headers=user_a_headers).json()
+
+    # Set both contacts
+    client.put("/api/v1/emergency-policy", json={"primary_contact_id": c1["id"], "secondary_contact_id": c2["id"]}, headers=user_a_headers)
+
+    # Clear primary contact by passing null explicitly
+    res_clear_p = client.put("/api/v1/emergency-policy", json={"primary_contact_id": None}, headers=user_a_headers)
+    assert res_clear_p.status_code == 200
+    assert res_clear_p.json()["primary_contact_id"] is None
+    assert res_clear_p.json()["secondary_contact_id"] == c2["id"]
+
+    # Clear secondary contact by passing null explicitly
+    res_clear_s = client.put("/api/v1/emergency-policy", json={"secondary_contact_id": None}, headers=user_a_headers)
+    assert res_clear_s.status_code == 200
+    assert res_clear_s.json()["secondary_contact_id"] is None
+
+
+def test_secondary_contact_deletion_unlinks_from_policy(client, user_a_headers):
+    c1 = client.post("/api/v1/contacts", json={"name": "SecTarget", "phone": "+919800000033", "priority": 2}, headers=user_a_headers).json()
+    client.put("/api/v1/emergency-policy", json={"secondary_contact_id": c1["id"]}, headers=user_a_headers)
+
+    # Delete secondary contact
+    client.delete(f"/api/v1/contacts/{c1['id']}", headers=user_a_headers)
+
+    # Verify secondary_contact_id cleared
+    policy = client.get("/api/v1/emergency-policy", headers=user_a_headers).json()
+    assert policy["secondary_contact_id"] is None

@@ -66,3 +66,14 @@ def test_my_safety_profile_authenticated(client, user_a, user_a_headers):
     assert data["user_id"] == user_a.id
     assert "policy" in data
     assert "consent" in data
+
+
+def test_context_endpoints_reject_nonexistent_user(client):
+    ghost_id = "00000000-0000-0000-0000-000000000000"
+    res_ai = client.get(f"/api/v1/context/ai-risk/{ghost_id}")
+    assert res_ai.status_code == 404
+    assert res_ai.json()["error"]["code"] == "NOT_FOUND"
+
+    res_dispatch = client.get(f"/api/v1/context/emergency-dispatch/{ghost_id}")
+    assert res_dispatch.status_code == 404
+    assert res_dispatch.json()["error"]["code"] == "NOT_FOUND"
