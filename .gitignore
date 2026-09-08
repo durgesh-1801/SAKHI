@@ -42,5 +42,45 @@ alembic/__pycache__/
 .docker/
 
 # OS
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+# Python Bytecode & Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pytest_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Environments & Local Secrets
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Testing and coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+sakhi.db
+
+# IDE and OS
+.vscode/
+.idea/
 .DS_Store
 Thumbs.db
